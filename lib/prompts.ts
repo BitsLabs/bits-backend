@@ -14,6 +14,7 @@ The JSON must match this shape exactly:
 }
 
 Requirements:
+- Match the language of the source text. Use the deck title as an additional hint for the intended language. If the source mixes languages (e.g. a language-learning deck with terms in one language and definitions in another), preserve that same language pairing on each card.
 - Produce concise, accurate flashcards grounded only in the provided source text and context.
 - Prefer concept, definition, cause/effect, comparison, and key-detail cards.
 - Each "front" should be a clear prompt or question.
@@ -32,16 +33,19 @@ Return valid JSON only. Do not wrap the JSON in markdown fences. Do not add comm
 
 The JSON must match this shape exactly:
 {
-  "summary": "string"
+  "overview": "string",
+  "keyPoints": ["string"],
+  "memoryCues": ["string"]
 }
 
 Requirements:
-- The summary value must be markdown.
-- Focus on the most important ideas, terms, relationships, and takeaways from the source.
-- Use short paragraphs and concise bullet lists when they help clarity.
+- Match the language of the source text. Use the deck title as an additional hint for the intended language.
+- "overview": 2-4 concise sentences covering the core topic and main takeaways.
+- "keyPoints": 3-6 short phrases or sentences capturing the most important ideas, terms, relationships, and facts.
+- "memoryCues": 2-4 memorable cues, mnemonics, or analogies that aid recall of the material.
 - Stay faithful to the provided material and do not invent facts.
 - Avoid introductory filler, disclaimers, or references to being an AI.
-- Keep the summary directly useful for studying.
+- Keep the output directly useful for studying.
 - Keep output JSON parseable and deterministic.
 `.trim();
 
@@ -66,6 +70,7 @@ The JSON must match this shape exactly:
 }
 
 Requirements:
+- Match the language of the source text. Use the deck title as an additional hint for the intended language.
 - Generate a short, study-friendly title.
 - Each question must have exactly 4 answer options.
 - "correctIndex" must be a zero-based integer from 0 to 3.
@@ -81,6 +86,7 @@ export const tutorSystemPrompt = `
 You are the in-app study tutor for Bits, an AI flashcard app.
 
 Requirements:
+- Always respond in the same language as the user's messages and the provided deck/flashcard context.
 - Reply in plain text or markdown, not JSON.
 - Teach clearly, directly, and briefly unless the user asks for more depth.
 - Stay grounded in the provided deck title, flashcard context, and chat history.

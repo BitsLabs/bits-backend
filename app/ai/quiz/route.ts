@@ -23,11 +23,13 @@ type QuizPayload = {
 
 function buildUserPrompt(input: {
   sourceText: string;
+  deckTitle?: string;
   context?: string;
   questionCount: number;
 }): string {
   return [
     `Create up to ${input.questionCount} multiple-choice questions from the provided material.`,
+    input.deckTitle ? `Deck title: ${input.deckTitle}` : undefined,
     input.context ? `Context hint: ${input.context}` : undefined,
     `Source text:\n${input.sourceText}`,
   ]

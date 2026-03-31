@@ -9,12 +9,20 @@ import { summarySystemPrompt } from "../../../lib/prompts";
 import { rateLimit } from "../../../lib/rateLimit";
 import { validateSummaryRequest } from "../../../lib/validation";
 
+type SummaryPayload = {
+  overview: string;
+  keyPoints: string[];
+  memoryCues: string[];
+};
+
 function buildUserPrompt(input: {
   sourceText: string;
+  deckTitle?: string;
   context?: string;
 }): string {
   return [
     "Summarize the provided material for studying.",
+    input.deckTitle ? `Deck title: ${input.deckTitle}` : undefined,
     input.context ? `Context hint: ${input.context}` : undefined,
     `Source text:\n${input.sourceText}`,
   ]
@@ -22,14 +30,31 @@ function buildUserPrompt(input: {
     .join("\n\n");
 }
 
-function normalizeSummary(payload: unknown): string {
+function normalizeSummary(payload: unknown): SummaryPayload {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new AppError("ai_error", "The AI service returned invalid JSON.", 502);
   }
 
-  const summary = "summary" in payload ? payload.summary : undefined;
+  const record = payload as Record<string, unknown>;
 
-  if (typeof summary !== "string" || !summary.trim()) {
+  const overview =
+    typeof record.overview === "string" && record.overview.trim()
+      ? record.overview.trim()
+      : "";
+
+  const keyPoints = Array.isArray(record.keyPoints)
+    ? record.keyPoints
+        .filter((item) => typeof item === "string" && item.trim())
+        .map((item) => (item as string).trim())
+    : [];
+
+  const memoryCues = Array.isArray(record.memoryCues)
+    ? record.memoryCues
+        .filter((item) => typeof item === "string" && item.trim())
+        .map((item) => (item as string).trim())
+    : [];
+
+  if (!overview && keyPoints.length === 0) {
     throw new AppError(
       "ai_error",
       "The AI service returned an invalid summary.",
@@ -37,7 +62,7 @@ function normalizeSummary(payload: unknown): string {
     );
   }
 
-  return summary.trim();
+  return { overview, keyPoints, memoryCues };
 }
 
 export const runtime = "nodejs";

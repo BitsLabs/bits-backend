@@ -18,17 +18,20 @@ export type TutorHistoryMessage = {
 
 export type CardsRequestBody = {
   sourceText: string;
+  deckTitle?: string;
   context?: string;
   maxCards: number;
 };
 
 export type SummaryRequestBody = {
   sourceText: string;
+  deckTitle?: string;
   context?: string;
 };
 
 export type QuizRequestBody = {
   sourceText: string;
+  deckTitle?: string;
   context?: string;
   questionCount: number;
 };
@@ -133,6 +136,11 @@ export function validateCardsRequest(body: unknown): CardsRequestBody {
       "sourceText",
       LIMITS.maxSourceTextLength,
     ),
+    deckTitle: validateOptionalString(
+      payload.deckTitle,
+      "deckTitle",
+      LIMITS.maxContextLength,
+    ),
     context: validateOptionalString(
       payload.context,
       "context",
@@ -156,6 +164,11 @@ export function validateSummaryRequest(body: unknown): SummaryRequestBody {
       "sourceText",
       LIMITS.maxSourceTextLength,
     ),
+    deckTitle: validateOptionalString(
+      payload.deckTitle,
+      "deckTitle",
+      LIMITS.maxContextLength,
+    ),
     context: validateOptionalString(
       payload.context,
       "context",
@@ -172,6 +185,11 @@ export function validateQuizRequest(body: unknown): QuizRequestBody {
       payload.sourceText,
       "sourceText",
       LIMITS.maxSourceTextLength,
+    ),
+    deckTitle: validateOptionalString(
+      payload.deckTitle,
+      "deckTitle",
+      LIMITS.maxContextLength,
     ),
     context: validateOptionalString(
       payload.context,

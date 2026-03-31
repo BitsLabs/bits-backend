@@ -40,11 +40,13 @@ function normalizeCards(payload: unknown, maxCards: number): Flashcard[] {
 
 function buildUserPrompt(input: {
   sourceText: string;
+  deckTitle?: string;
   context?: string;
   maxCards: number;
 }): string {
   return [
     `Create up to ${input.maxCards} flashcards from the provided material.`,
+    input.deckTitle ? `Deck title: ${input.deckTitle}` : undefined,
     input.context ? `Context hint: ${input.context}` : undefined,
     `Source text:\n${input.sourceText}`,
   ]
