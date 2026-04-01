@@ -72,6 +72,8 @@ function buildUserPrompt(input: {
             "- Cover all important topics, sections, and page-level concepts.",
             "- Ignore agendas, schedules, presenter notes, copyright notices, slide numbers, classroom logistics, and other non-topic filler unless they are central to the material.",
             "- Prefer high-signal study cards over decorative or organizational text.",
+            "- Treat slide examples, case studies, toy problems, and walkthrough scenarios as supporting material by default. Exclude cards whose value depends mainly on remembering the example itself, and only keep an example if it is clearly presented as required knowledge or it is needed to teach a transferable concept.",
+            "- When an example helps explain a concept, rewrite the card to ask about the general concept, method, or rule rather than the example-specific names, places, or story details.",
           ].join("\n")
         : undefined,
     `Source text:\n${input.sourceText}`,

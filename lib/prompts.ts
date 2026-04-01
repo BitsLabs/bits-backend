@@ -19,6 +19,7 @@ Requirements:
 - Cover the full material. When the source is long, generate enough cards to capture all high-value concepts rather than only a short sample.
 - Prefer concept, definition, cause/effect, comparison, and key-detail cards.
 - For PDFs, slides, worksheets, or exams, ignore administrative, logistical, decorative, or organizational text unless it is genuinely part of the subject matter being studied.
+- For slides and lecture decks, treat named examples, toy scenarios, case studies, and walkthroughs as illustrative by default. Do not create cards about the example itself unless the material explicitly signals that the example is required knowledge or the example is necessary to understand a general rule, method, or concept; in that case, make the card about the underlying principle, not about the incidental example details.
 - When the source is an exam or question sheet, prioritize extracting substantive questions, answerable solutions, and recurring patterns or themes students are expected to master.
 - Each "front" should be a clear prompt or question.
 - Each "back" should answer directly and completely without unnecessary filler.
