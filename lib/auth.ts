@@ -1,33 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
-
 import type { NextRequest } from "next/server";
 
 import { AppError } from "./errors";
-
-function getConfiguredSecret(): string {
-  const secret = process.env.BITS_APP_SECRET;
-
-  if (!secret) {
-    throw new AppError(
-      "temporarily_unavailable",
-      "Authentication is not configured on the server.",
-      503,
-    );
-  }
-
-  return secret;
-}
-
-function tokensMatch(expected: string, provided: string): boolean {
-  const expectedBuffer = Buffer.from(expected);
-  const providedBuffer = Buffer.from(provided);
-
-  if (expectedBuffer.length !== providedBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(expectedBuffer, providedBuffer);
-}
+import { verifySessionToken } from "./session";
 
 export function authenticate(request: NextRequest): void {
   const authorization = request.headers.get("authorization");
@@ -42,7 +16,5 @@ export function authenticate(request: NextRequest): void {
     throw new AppError("unauthorized", "Missing or invalid bearer token.", 401);
   }
 
-  if (!tokensMatch(getConfiguredSecret(), token)) {
-    throw new AppError("unauthorized", "Invalid bearer token.", 401);
-  }
+  verifySessionToken(token);
 }

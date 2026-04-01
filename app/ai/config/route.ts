@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json({
-    available: Boolean(process.env.OPENAI_API_KEY),
+    available: Boolean(process.env.OPENAI_API_KEY && process.env.BITS_SESSION_SECRET),
     modelLabel: getModelLabel(MODEL_POLICY.cards),
   });
 }

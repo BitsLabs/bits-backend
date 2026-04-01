@@ -89,6 +89,7 @@ function validateOptionalString(
   value: unknown,
   field: string,
   maxLength: number,
+  tooLongMessage?: string,
 ): string | undefined {
   if (value === undefined || value === null) {
     return undefined;
@@ -105,7 +106,7 @@ function validateOptionalString(
   }
 
   if (trimmed.length > maxLength) {
-    invalid(field, `must be at most ${maxLength} characters`);
+    invalid(field, tooLongMessage ?? `must be at most ${maxLength} characters`);
   }
 
   return trimmed;
@@ -268,6 +269,7 @@ export function validateTutorRequest(body: unknown): TutorRequestBody {
       payload.cardContext,
       "cardContext",
       LIMITS.maxContextLength,
+      "Tutor deck context is too large. Please reduce the amount of included deck content.",
     ),
     history: validateTutorHistory(payload.history),
     message: validateRequiredString(

@@ -7,6 +7,7 @@ const WINDOW_MS = 60_000;
 const LIMITS_BY_TIER = {
   generation: 20,
   chat: 40,
+  session: 30,
 } as const;
 
 type RateLimitTier = keyof typeof LIMITS_BY_TIER;

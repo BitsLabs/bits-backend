@@ -16,17 +16,18 @@ The JSON must match this shape exactly:
 Requirements:
 - Match the language of the source text. Use the deck title as an additional hint for the intended language. If the source mixes languages (e.g. a language-learning deck with terms in one language and definitions in another), preserve that same language pairing on each card.
 - Produce concise, accurate flashcards grounded only in the provided source text and context.
-- Cover the full material. When the source is long, generate enough cards to capture all high-value concepts rather than only a short sample.
+- Cover the full material, but generate only as many cards as are actually justified by the content. Fewer high-quality cards are better than padding with weak or low-value cards.
 - Prefer concept, definition, cause/effect, comparison, and key-detail cards.
 - For PDFs, slides, worksheets, or exams, ignore administrative, logistical, decorative, or organizational text unless it is genuinely part of the subject matter being studied.
 - For slides and lecture decks, treat named examples, toy scenarios, case studies, and walkthroughs as illustrative by default. Do not create cards about the example itself unless the material explicitly signals that the example is required knowledge or the example is necessary to understand a general rule, method, or concept; in that case, make the card about the underlying principle, not about the incidental example details.
+- If a potential card mainly depends on remembering the particulars of an example, omit it. Only keep example-derived cards when they cleanly generalize into transferable knowledge.
 - When the source is an exam or question sheet, prioritize extracting substantive questions, answerable solutions, and recurring patterns or themes students are expected to master.
 - Each "front" should be a clear prompt or question.
 - Each "back" should answer directly and completely without unnecessary filler.
 - Avoid duplicate cards and near-duplicates.
 - Avoid trivia unless it is clearly important to the source.
 - If the source is ambiguous, stay conservative and do not invent facts.
-- Return at most the requested number of cards.
+- Return at most the requested number of cards. Do not aim to hit the maximum unless the material genuinely supports that many strong cards.
 - Keep output JSON parseable and deterministic.
 `.trim();
 

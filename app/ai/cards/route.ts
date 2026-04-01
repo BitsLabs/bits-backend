@@ -50,9 +50,9 @@ function buildUserPrompt(input: {
 
   return [
     extractionMode === "exam"
-      ? `This PDF appears to be an exam, worksheet, or question sheet. Extract an exhaustive set of study cards from the provided material, generating as many cards as needed to cover the full document, up to ${input.maxCards} cards for this response.`
+      ? `This PDF appears to be an exam, worksheet, or question sheet. Extract as many high-value study cards as needed to cover the material well, up to ${input.maxCards} cards for this response.`
       : input.sourceType === "pdf"
-        ? `Extract an exhaustive set of study flashcards from the provided PDF material. Generate as many cards as needed to cover the full document, up to ${input.maxCards} cards for this response.`
+        ? `Extract as many high-value study flashcards as needed from the provided PDF material to cover the document well, up to ${input.maxCards} cards for this response.`
         : `Create up to ${input.maxCards} flashcards from the provided material.`,
     input.deckTitle ? `Deck title: ${input.deckTitle}` : undefined,
     input.sourceType ? `Source type: ${input.sourceType}` : undefined,
@@ -74,6 +74,7 @@ function buildUserPrompt(input: {
             "- Prefer high-signal study cards over decorative or organizational text.",
             "- Treat slide examples, case studies, toy problems, and walkthrough scenarios as supporting material by default. Exclude cards whose value depends mainly on remembering the example itself, and only keep an example if it is clearly presented as required knowledge or it is needed to teach a transferable concept.",
             "- When an example helps explain a concept, rewrite the card to ask about the general concept, method, or rule rather than the example-specific names, places, or story details.",
+            "- Do not pad the output to reach the maximum card count. Return fewer cards if that produces a cleaner, more relevant deck.",
           ].join("\n")
         : undefined,
     `Source text:\n${input.sourceText}`,
