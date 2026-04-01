@@ -26,15 +26,54 @@ function buildUserPrompt(input: {
   deckTitle?: string;
   context?: string;
   questionCount: number;
+  variationSeed?: string;
 }): string {
   return [
     `Create up to ${input.questionCount} multiple-choice questions from the provided material.`,
     input.deckTitle ? `Deck title: ${input.deckTitle}` : undefined,
     input.context ? `Context hint: ${input.context}` : undefined,
+    input.variationSeed
+      ? [
+          `Variation seed: ${input.variationSeed}`,
+          "Use this seed as a tie-breaker to choose a fresh but still high-value mix of questions, concepts, examples, and distractors for this run.",
+        ].join("\n")
+      : undefined,
     `Source text:\n${input.sourceText}`,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function shuffleQuestions<T>(questions: T[], seed: string): T[] {
+  let state = hashSeed(seed);
+  const result = [...questions];
+
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    state = nextSeed(state);
+    const swapIndex = state % (index + 1);
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+
+  return result;
+}
+
+function hashSeed(seed: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0) || 1;
+}
+
+function nextSeed(current: number): number {
+  let value = current || 1;
+  value ^= value << 13;
+  value ^= value >>> 17;
+  value ^= value << 5;
+  return value >>> 0;
 }
 
 function normalizeQuiz(payload: unknown, questionCount: number): QuizPayload {
@@ -99,12 +138,11 @@ function normalizeQuiz(payload: unknown, questionCount: number): QuizPayload {
     .map((question) => ({
       ...question,
       options: question.options as [string, string, string, string],
-    }))
-    .slice(0, questionCount);
+    }));
 
   return {
     title,
-    questions,
+    questions: questions.slice(0, questionCount),
   };
 }
 
@@ -124,6 +162,7 @@ export async function POST(request: NextRequest) {
         { role: "system", content: quizSystemPrompt },
         { role: "user", content: buildUserPrompt(body) },
       ],
+      temperature: 0.9,
     });
 
     const rawContent = completion.choices[0]?.message?.content;
@@ -140,8 +179,16 @@ export async function POST(request: NextRequest) {
       throw new AppError("ai_error", "The AI service returned invalid JSON.", 502);
     }
 
+    const normalizedQuiz = normalizeQuiz(parsed, body.questionCount);
+    const questions = body.variationSeed
+      ? shuffleQuestions(normalizedQuiz.questions, body.variationSeed)
+      : normalizedQuiz.questions;
+
     return NextResponse.json({
-      quiz: normalizeQuiz(parsed, body.questionCount),
+      quiz: {
+        ...normalizedQuiz,
+        questions: questions.slice(0, body.questionCount),
+      },
       diagnostics: buildDiagnostics(model, completion.usage),
     });
   } catch (error) {

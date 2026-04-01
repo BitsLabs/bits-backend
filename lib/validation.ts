@@ -2,13 +2,15 @@ import { AppError } from "./errors";
 
 export const LIMITS = {
   maxSourceTextLength: 50_000,
-  maxCards: 30,
+  maxCards: 120,
   defaultCards: 10,
-  maxQuestionCount: 20,
+  maxQuestionCount: 40,
   defaultQuestionCount: 5,
   maxChatHistory: 30,
   maxUserMessageLength: 2_000,
   maxContextLength: 5_000,
+  maxReferenceLabelLength: 500,
+  maxVariationSeedLength: 100,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -21,6 +23,8 @@ export type CardsRequestBody = {
   deckTitle?: string;
   context?: string;
   maxCards: number;
+  sourceType?: string;
+  referenceLabel?: string;
 };
 
 export type SummaryRequestBody = {
@@ -34,6 +38,7 @@ export type QuizRequestBody = {
   deckTitle?: string;
   context?: string;
   questionCount: number;
+  variationSeed?: string;
 };
 
 export type TutorRequestBody = {
@@ -152,6 +157,16 @@ export function validateCardsRequest(body: unknown): CardsRequestBody {
       LIMITS.defaultCards,
       LIMITS.maxCards,
     ),
+    sourceType: validateOptionalString(
+      payload.sourceType,
+      "sourceType",
+      50,
+    ),
+    referenceLabel: validateOptionalString(
+      payload.referenceLabel,
+      "referenceLabel",
+      LIMITS.maxReferenceLabelLength,
+    ),
   };
 }
 
@@ -201,6 +216,11 @@ export function validateQuizRequest(body: unknown): QuizRequestBody {
       "questionCount",
       LIMITS.defaultQuestionCount,
       LIMITS.maxQuestionCount,
+    ),
+    variationSeed: validateOptionalString(
+      payload.variationSeed,
+      "variationSeed",
+      LIMITS.maxVariationSeedLength,
     ),
   };
 }

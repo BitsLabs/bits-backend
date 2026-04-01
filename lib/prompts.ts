@@ -16,7 +16,10 @@ The JSON must match this shape exactly:
 Requirements:
 - Match the language of the source text. Use the deck title as an additional hint for the intended language. If the source mixes languages (e.g. a language-learning deck with terms in one language and definitions in another), preserve that same language pairing on each card.
 - Produce concise, accurate flashcards grounded only in the provided source text and context.
+- Cover the full material. When the source is long, generate enough cards to capture all high-value concepts rather than only a short sample.
 - Prefer concept, definition, cause/effect, comparison, and key-detail cards.
+- For PDFs, slides, worksheets, or exams, ignore administrative, logistical, decorative, or organizational text unless it is genuinely part of the subject matter being studied.
+- When the source is an exam or question sheet, prioritize extracting substantive questions, answerable solutions, and recurring patterns or themes students are expected to master.
 - Each "front" should be a clear prompt or question.
 - Each "back" should answer directly and completely without unnecessary filler.
 - Avoid duplicate cards and near-duplicates.
@@ -77,9 +80,11 @@ Requirements:
 - Include only one correct answer per question.
 - Explanations should briefly justify the correct answer.
 - Questions should test understanding, not only rote memorization.
+- Across repeated quiz generations for the same source, vary the angle, coverage, difficulty, and phrasing while still focusing on the most important concepts.
+- Mix question styles when possible, such as definitions, comparisons, cause/effect, applications, exceptions, and scenario-based checks.
 - Do not invent facts beyond the provided source text and context.
 - Return at most the requested number of questions.
-- Keep output JSON parseable and deterministic.
+- Keep output JSON parseable.
 `.trim();
 
 export const tutorSystemPrompt = `

@@ -43,15 +43,68 @@ function buildUserPrompt(input: {
   deckTitle?: string;
   context?: string;
   maxCards: number;
+  sourceType?: string;
+  referenceLabel?: string;
 }): string {
+  const extractionMode = inferCardExtractionMode(input);
+
   return [
-    `Create up to ${input.maxCards} flashcards from the provided material.`,
+    extractionMode === "exam"
+      ? `This PDF appears to be an exam, worksheet, or question sheet. Extract an exhaustive set of study cards from the provided material, generating as many cards as needed to cover the full document, up to ${input.maxCards} cards for this response.`
+      : input.sourceType === "pdf"
+        ? `Extract an exhaustive set of study flashcards from the provided PDF material. Generate as many cards as needed to cover the full document, up to ${input.maxCards} cards for this response.`
+        : `Create up to ${input.maxCards} flashcards from the provided material.`,
     input.deckTitle ? `Deck title: ${input.deckTitle}` : undefined,
+    input.sourceType ? `Source type: ${input.sourceType}` : undefined,
+    input.referenceLabel ? `Reference label: ${input.referenceLabel}` : undefined,
     input.context ? `Context hint: ${input.context}` : undefined,
+    extractionMode === "exam"
+      ? [
+          "Exam extraction instructions:",
+          "- Prioritize substantive questions, answer keys, worked solutions, and repeated problem patterns.",
+          "- If an answer is explicit in the source, put that answer on the back.",
+          "- If the source only shows a question without an answer, turn it into a pattern, concept, or method card instead of inventing an answer.",
+          "- Ignore logistics such as permitted materials, room assignments, grading rules, due dates, cover pages, or formatting instructions unless they are academically relevant.",
+        ].join("\n")
+      : input.sourceType === "pdf"
+        ? [
+            "PDF extraction instructions:",
+            "- Cover all important topics, sections, and page-level concepts.",
+            "- Ignore agendas, schedules, presenter notes, copyright notices, slide numbers, classroom logistics, and other non-topic filler unless they are central to the material.",
+            "- Prefer high-signal study cards over decorative or organizational text.",
+          ].join("\n")
+        : undefined,
     `Source text:\n${input.sourceText}`,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function inferCardExtractionMode(input: {
+  sourceText: string;
+  deckTitle?: string;
+  context?: string;
+  sourceType?: string;
+  referenceLabel?: string;
+}): "standard" | "exam" {
+  if (input.sourceType !== "pdf") {
+    return "standard";
+  }
+
+  const combined = [
+    input.deckTitle,
+    input.context,
+    input.referenceLabel,
+    input.sourceText.slice(0, 8_000),
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+
+  const examPattern =
+    /\b(exam|final exam|midterm|quiz|sample exam|practice exam|past paper|mock exam|worksheet|problem set|klausur|prüfung|examensfragen|fragenkatalog|question sheet|answer key|multiple choice)\b/;
+
+  return examPattern.test(combined) ? "exam" : "standard";
 }
 
 export const runtime = "nodejs";
@@ -70,6 +123,7 @@ export async function POST(request: NextRequest) {
         { role: "system", content: cardsSystemPrompt },
         { role: "user", content: buildUserPrompt(body) },
       ],
+      temperature: 0.3,
     });
 
     const rawContent = completion.choices[0]?.message?.content;
