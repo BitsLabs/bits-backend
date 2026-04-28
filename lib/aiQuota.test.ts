@@ -1,7 +1,11 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 
-import { consumeAIQuota, resetAIQuotaForTests } from "./aiQuota.ts";
+import {
+  consumeAIQuota,
+  getAIQuotaStatus,
+  resetAIQuotaForTests,
+} from "./aiQuota.ts";
 import type { VerifiedSession } from "./session.ts";
 
 const session: VerifiedSession = {
@@ -88,4 +92,22 @@ test("falls back to installation limits for older sessions", async () => {
       installationId: "installation-456",
     }),
   );
+});
+
+test("reports remaining AI requests for the current week", async () => {
+  process.env.BITS_AI_WEEKLY_REQUEST_LIMIT = "3";
+  delete process.env.KV_REST_API_URL;
+  delete process.env.KV_REST_API_TOKEN;
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  resetAIQuotaForTests();
+
+  await consumeAIQuota(session);
+
+  const status = await getAIQuotaStatus(session);
+
+  assert.equal(status.limit, 3);
+  assert.equal(status.used, 1);
+  assert.equal(status.remaining, 2);
+  assert.match(status.resetsAt, /^\d{4}-\d{2}-\d{2}T/);
 });

@@ -7,7 +7,14 @@ const WEEK_MS = WEEK_SECONDS * 1000;
 
 const requestsByUser = new Map<string, number>();
 
-function getWeeklyLimit(): number {
+export type AIQuotaStatus = {
+  limit: number;
+  remaining: number;
+  resetsAt: string;
+  used: number;
+};
+
+export function getWeeklyLimit(): number {
   const configuredLimit = process.env.BITS_AI_WEEKLY_REQUEST_LIMIT;
 
   if (!configuredLimit) {
@@ -45,6 +52,11 @@ function getQuotaKey(session: VerifiedSession, now: number): string {
     : `installation:${session.installationId}`;
 
   return `ai-quota:v2:${session.bundleId}:${userIdentifier}:${week}`;
+}
+
+function getWeekResetDate(now: number): Date {
+  const currentWeek = Math.floor(now / WEEK_MS);
+  return new Date((currentWeek + 1) * WEEK_MS);
 }
 
 function throwQuotaExceeded(): never {
@@ -108,6 +120,43 @@ async function consumeRedisQuota(
   }
 }
 
+async function readRedisQuotaStatus(
+  session: VerifiedSession,
+  weeklyLimit: number,
+): Promise<AIQuotaStatus> {
+  const redis = getRedisConfig();
+
+  if (!redis) {
+    return readInMemoryQuotaStatus(session, weeklyLimit);
+  }
+
+  const now = Date.now();
+  const key = getQuotaKey(session, now);
+  const response = await fetch(`${redis.url}/get/${encodeURIComponent(key)}`, {
+    headers: {
+      Authorization: `Bearer ${redis.token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new AppError(
+      "temporarily_unavailable",
+      "AI usage tracking is temporarily unavailable. Please try again soon.",
+      503,
+    );
+  }
+
+  const payload = (await response.json()) as unknown;
+  const value =
+    payload && typeof payload === "object" && "result" in payload
+      ? (payload.result as unknown)
+      : null;
+  const used = typeof value === "string" ? Number.parseInt(value, 10) : 0;
+  const normalizedUsed = Number.isFinite(used) && used > 0 ? used : 0;
+
+  return quotaStatus(normalizedUsed, weeklyLimit, now);
+}
+
 function consumeInMemoryQuota(
   session: VerifiedSession,
   weeklyLimit: number,
@@ -123,8 +172,32 @@ function consumeInMemoryQuota(
   requestsByUser.set(key, currentCount + 1);
 }
 
+function readInMemoryQuotaStatus(
+  session: VerifiedSession,
+  weeklyLimit: number,
+): AIQuotaStatus {
+  const now = Date.now();
+  const key = getQuotaKey(session, now);
+  return quotaStatus(requestsByUser.get(key) ?? 0, weeklyLimit, now);
+}
+
+function quotaStatus(used: number, weeklyLimit: number, now: number): AIQuotaStatus {
+  return {
+    limit: weeklyLimit,
+    used,
+    remaining: Math.max(weeklyLimit - used, 0),
+    resetsAt: getWeekResetDate(now).toISOString(),
+  };
+}
+
 export async function consumeAIQuota(session: VerifiedSession): Promise<void> {
   await consumeRedisQuota(session, getWeeklyLimit());
+}
+
+export async function getAIQuotaStatus(
+  session: VerifiedSession,
+): Promise<AIQuotaStatus> {
+  return readRedisQuotaStatus(session, getWeeklyLimit());
 }
 
 export function resetAIQuotaForTests(): void {
