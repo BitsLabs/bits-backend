@@ -10,6 +10,7 @@ type SessionPayload = {
   exp: number;
   iat: number;
   installationId: string;
+  revenueCatAppUserId?: string;
   v: number;
 };
 
@@ -17,6 +18,7 @@ export type VerifiedSession = {
   bundleId: string;
   expiresAt: Date;
   installationId: string;
+  revenueCatAppUserId?: string;
 };
 
 function getSessionSecret(): string {
@@ -50,6 +52,7 @@ function sign(payload: string): string {
 export function issueSessionToken(input: {
   bundleId: string;
   installationId: string;
+  revenueCatAppUserId?: string;
 }): { expiresAt: Date; token: string } {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const expiresAt = new Date((nowSeconds + SESSION_TTL_SECONDS) * 1000);
@@ -59,6 +62,7 @@ export function issueSessionToken(input: {
     exp: Math.floor(expiresAt.getTime() / 1000),
     iat: nowSeconds,
     installationId: input.installationId,
+    revenueCatAppUserId: input.revenueCatAppUserId,
     v: SESSION_VERSION,
   };
 
@@ -116,5 +120,6 @@ export function verifySessionToken(token: string): VerifiedSession {
     installationId: payload.installationId,
     bundleId: payload.bundleId,
     expiresAt: new Date(payload.exp * 1000),
+    revenueCatAppUserId: payload.revenueCatAppUserId,
   };
 }

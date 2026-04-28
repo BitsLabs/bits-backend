@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { consumeAIQuota } from "../../../lib/aiQuota";
 import { authenticate } from "../../../lib/auth";
 import { AppError, handleError } from "../../../lib/errors";
 import { MODEL_POLICY } from "../../../lib/models";
@@ -26,10 +27,12 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    authenticate(request);
+    const session = authenticate(request);
     rateLimit(request, "chat");
 
     const body = validateTutorRequest(await request.json());
+    await consumeAIQuota(session);
+
     const model = MODEL_POLICY.tutor;
     const completion = await getOpenAIClient().chat.completions.create({
       model,

@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
 
 import { AppError } from "./errors";
-import { verifySessionToken } from "./session";
+import { verifySessionToken, type VerifiedSession } from "./session";
 
-export function authenticate(request: NextRequest): void {
+export function authenticate(request: NextRequest): VerifiedSession {
   const authorization = request.headers.get("authorization");
 
   if (!authorization?.startsWith("Bearer ")) {
@@ -16,5 +16,5 @@ export function authenticate(request: NextRequest): void {
     throw new AppError("unauthorized", "Missing or invalid bearer token.", 401);
   }
 
-  verifySessionToken(token);
+  return verifySessionToken(token);
 }
