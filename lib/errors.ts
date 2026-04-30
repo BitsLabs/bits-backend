@@ -12,6 +12,7 @@ export type AppErrorCode =
   | "rate_limited"
   | "invalid_input"
   | "temporarily_unavailable"
+  | "model_unavailable"
   | "ai_error";
 
 export class AppError extends Error {
@@ -57,6 +58,14 @@ function toAppError(error: unknown): AppError {
       "ai_error",
       "The AI service could not complete the request.",
       502,
+    );
+  }
+  
+  if (error instanceof EvalError) {
+    return new AppError(
+      "model_unavailable",
+      "The requested AI model is not available at this time.",
+      502
     );
   }
 
