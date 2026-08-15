@@ -1,30 +1,32 @@
-export type BitsFeature = "cards" | "summary" | "quiz" | "tutor";
+export type BitsFeature = "cards" | "summary" | "quiz" | "tutor" | "chat";
 
-export type BitsModel = "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.4-nano" | "gpt-5.5";
+/**
+ * Model IDs are OpenRouter slugs, not first-party Anthropic IDs — OpenRouter
+ * namespaces by provider (`anthropic/claude-haiku-4.5`, not `claude-haiku-4-5`).
+ * Sending a first-party ID here 404s at the gateway.
+ */
+export type BitsModel = "anthropic/claude-haiku-4.5";
 
-export const DEFAULT_GPT_5_4_MODEL: BitsModel = "gpt-5.4-mini";
+export const DEFAULT_MODEL: BitsModel = "anthropic/claude-haiku-4.5";
 
-export const DEFAULT_GPT_5_5_MODEL: BitsModel = "gpt-5.5"
-
-export const MODEL_POLICY_LIGHT: Record<BitsFeature, BitsModel> = {
-  cards: DEFAULT_GPT_5_4_MODEL,
-  summary: DEFAULT_GPT_5_4_MODEL,
-  quiz: DEFAULT_GPT_5_4_MODEL,
-  tutor: DEFAULT_GPT_5_4_MODEL,
-};
-
+/**
+ * Every feature is on Haiku 4.5 for now. The policy map stays per-feature so a
+ * single surface (e.g. chat) can be moved to a stronger model without touching
+ * the routes.
+ */
 export const MODEL_POLICY: Record<BitsFeature, BitsModel> = {
-  cards: DEFAULT_GPT_5_5_MODEL,
-  summary: DEFAULT_GPT_5_5_MODEL,
-  quiz: DEFAULT_GPT_5_5_MODEL,
-  tutor: DEFAULT_GPT_5_5_MODEL,
+  cards: DEFAULT_MODEL,
+  summary: DEFAULT_MODEL,
+  quiz: DEFAULT_MODEL,
+  tutor: DEFAULT_MODEL,
+  chat: DEFAULT_MODEL,
 };
+
+/** Retained for callers that used the light policy; both tiers are Haiku 4.5 today. */
+export const MODEL_POLICY_LIGHT: Record<BitsFeature, BitsModel> = MODEL_POLICY;
 
 const MODEL_LABELS: Record<BitsModel, string> = {
-  "gpt-5.4": "GPT-5.4",
-  "gpt-5.4-mini": "GPT-5.4 Mini",
-  "gpt-5.4-nano": "GPT-5.4 Nano",
-  "gpt-5.5": "GPT-5.5",
+  "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
 };
 
 export function getModelLabel(model: BitsModel): string {

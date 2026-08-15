@@ -60,14 +60,6 @@ function toAppError(error: unknown): AppError {
       502,
     );
   }
-  
-  if (error instanceof EvalError) {
-    return new AppError(
-      "model_unavailable",
-      "The requested AI model is not available at this time.",
-      502
-    );
-  }
 
   return new AppError("ai_error", "An unexpected error occurred.", 500);
 }

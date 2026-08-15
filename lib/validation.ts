@@ -11,6 +11,12 @@ export const LIMITS = {
   maxContextLength: 5_000,
   maxReferenceLabelLength: 500,
   maxVariationSeedLength: 100,
+  // Chat is the surface users paste raw study material into, so its per-message
+  // ceiling is much higher than the tutor's 2k conversational limit.
+  maxChatMessageLength: 20_000,
+  maxChatToolResultLength: 20_000,
+  maxChatMessages: 40,
+  maxToolCallsPerMessage: 8,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -46,6 +52,23 @@ export type TutorRequestBody = {
   cardContext?: string;
   history: TutorHistoryMessage[];
   message: string;
+};
+
+export type ChatToolCall = {
+  id: string;
+  name: string;
+  /** Raw JSON string as emitted by the model. */
+  arguments: string;
+};
+
+export type ChatMessage =
+  | { role: "user" | "assistant"; content?: string; toolCalls: ChatToolCall[] }
+  | { role: "tool"; toolCallId: string; content: string };
+
+export type ChatRequestBody = {
+  messages: ChatMessage[];
+  /** Compact "id — name (n cards)" list so the agent can skip list_decks for simple asks. */
+  deckSummaries?: string;
 };
 
 function invalid(field: string, message: string): never {
@@ -254,6 +277,118 @@ export function validateTutorHistory(value: unknown): TutorHistoryMessage[] {
         ),
       };
     });
+}
+
+/**
+ * One turn of the agent loop. Unlike the tutor's flat history, chat carries the
+ * assistant's tool calls and the client's tool results, because the client is
+ * what executes tools — the transcript has to round-trip through the device.
+ */
+export function validateChatRequest(body: unknown): ChatRequestBody {
+  const payload = assertPlainObject(body, "body");
+
+  if (!Array.isArray(payload.messages)) {
+    invalid("messages", "must be an array");
+  }
+
+  const trimmedHistory = payload.messages.slice(-LIMITS.maxChatMessages);
+
+  if (trimmedHistory.length === 0) {
+    invalid("messages", "must not be empty");
+  }
+
+  const messages = trimmedHistory.map((entry, index): ChatMessage => {
+    const message = assertPlainObject(entry, `messages[${index}]`);
+    const role = message.role;
+
+    if (role !== "user" && role !== "assistant" && role !== "tool") {
+      invalid(`messages[${index}].role`, "must be 'user', 'assistant', or 'tool'");
+    }
+
+    if (role === "tool") {
+      return {
+        role,
+        toolCallId: validateRequiredString(
+          message.toolCallId,
+          `messages[${index}].toolCallId`,
+          200,
+        ),
+        content: validateRequiredString(
+          message.content,
+          `messages[${index}].content`,
+          LIMITS.maxChatToolResultLength,
+        ),
+      };
+    }
+
+    const toolCalls = validateToolCalls(message.toolCalls, index);
+
+    // An assistant turn that only calls tools carries no prose, so content is
+    // optional there — but a message with neither content nor tool calls is
+    // meaningless and would be rejected by the model anyway.
+    const content = validateOptionalString(
+      message.content,
+      `messages[${index}].content`,
+      LIMITS.maxChatMessageLength,
+    );
+
+    if (!content && toolCalls.length === 0) {
+      invalid(
+        `messages[${index}]`,
+        "must have content or toolCalls",
+      );
+    }
+
+    return { role, content, toolCalls };
+  });
+
+  if (messages.at(-1)?.role === "assistant") {
+    invalid("messages", "must not end with an assistant message");
+  }
+
+  return {
+    messages,
+    deckSummaries: validateOptionalString(
+      payload.deckSummaries,
+      "deckSummaries",
+      LIMITS.maxContextLength,
+    ),
+  };
+}
+
+function validateToolCalls(value: unknown, messageIndex: number): ChatToolCall[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    invalid(`messages[${messageIndex}].toolCalls`, "must be an array");
+  }
+
+  if (value.length > LIMITS.maxToolCallsPerMessage) {
+    invalid(
+      `messages[${messageIndex}].toolCalls`,
+      `must contain at most ${LIMITS.maxToolCallsPerMessage} calls`,
+    );
+  }
+
+  return value.map((entry, callIndex): ChatToolCall => {
+    const field = `messages[${messageIndex}].toolCalls[${callIndex}]`;
+    const call = assertPlainObject(entry, field);
+
+    return {
+      id: validateRequiredString(call.id, `${field}.id`, 200),
+      name: validateRequiredString(call.name, `${field}.name`, 100),
+      // Arguments are the model's own JSON, echoed back verbatim. Validating
+      // the JSON shape here would reject calls the model must be allowed to
+      // see its own history of.
+      arguments: validateRequiredString(
+        call.arguments,
+        `${field}.arguments`,
+        LIMITS.maxChatToolResultLength,
+      ),
+    };
+  });
 }
 
 export function validateTutorRequest(body: unknown): TutorRequestBody {

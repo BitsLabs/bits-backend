@@ -7,7 +7,7 @@ AI API used by the iOS app.
 Required:
 
 ```bash
-OPENAI_API_KEY=your_openai_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 BITS_SESSION_SECRET=replace_with_a_long_random_server_side_secret
 BITS_ALLOWED_BUNDLE_ID=technology.mja.Bits
 BITS_AI_WEEKLY_REQUEST_LIMIT=100
@@ -31,4 +31,4 @@ npm run build
 ## Release Notes
 
 - App traffic is authenticated with short-lived signed session tokens, not a static shared secret embedded in the app.
-- Production is only considered ready when `OPENAI_API_KEY`, `BITS_SESSION_SECRET`, `BITS_ALLOWED_BUNDLE_ID`, `BITS_AI_WEEKLY_REQUEST_LIMIT`, and Redis/KV REST credentials are configured.
+- Production is only considered ready when `OPENROUTER_API_KEY`, `BITS_SESSION_SECRET`, `BITS_ALLOWED_BUNDLE_ID`, `BITS_AI_WEEKLY_REQUEST_LIMIT`, and Redis/KV REST credentials are configured.

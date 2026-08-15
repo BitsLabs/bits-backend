@@ -1,0 +1,89 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { validateChatRequest } from "./validation.ts";
+
+test("accepts a plain user turn", () => {
+  const request = validateChatRequest({
+    messages: [{ role: "user", content: "Make me cards on mitosis" }],
+  });
+
+  assert.equal(request.messages.length, 1);
+  assert.equal(request.messages[0].role, "user");
+});
+
+test("round-trips an assistant tool call and its result", () => {
+  const request = validateChatRequest({
+    messages: [
+      { role: "user", content: "Quiz me" },
+      {
+        role: "assistant",
+        toolCalls: [
+          { id: "call_1", name: "list_decks", arguments: "{}" },
+        ],
+      },
+      { role: "tool", toolCallId: "call_1", content: '{"decks":[]}' },
+    ],
+  });
+
+  assert.equal(request.messages.length, 3);
+  const assistant = request.messages[1];
+  assert.equal(assistant.role, "assistant");
+  assert.equal(
+    assistant.role === "assistant" ? assistant.toolCalls[0].name : undefined,
+    "list_decks",
+  );
+});
+
+test("rejects a transcript ending on an assistant turn", () => {
+  // The model would have nothing to respond to, and a trailing assistant turn
+  // with unanswered tool calls is rejected upstream anyway.
+  assert.throws(
+    () =>
+      validateChatRequest({
+        messages: [
+          { role: "user", content: "Hi" },
+          { role: "assistant", content: "Hello" },
+        ],
+      }),
+    /must not end with an assistant message/,
+  );
+});
+
+test("rejects a message with neither content nor tool calls", () => {
+  assert.throws(
+    () => validateChatRequest({ messages: [{ role: "user" }] }),
+    /must have content or toolCalls/,
+  );
+});
+
+test("accepts pasted study material well beyond the tutor limit", () => {
+  // Chat is the paste surface; the tutor's 2k ceiling would reject real notes.
+  const request = validateChatRequest({
+    messages: [{ role: "user", content: "x".repeat(15_000) }],
+  });
+
+  assert.equal(
+    request.messages[0].role === "user" ? request.messages[0].content?.length : 0,
+    15_000,
+  );
+});
+
+test("keeps only the most recent messages", () => {
+  const messages = Array.from({ length: 60 }, (_, index) => ({
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: `m${index}`,
+  }));
+  // Ensure the trimmed window still ends on a non-assistant turn.
+  messages.push({ role: "user", content: "latest" });
+
+  const request = validateChatRequest({ messages });
+
+  assert.equal(request.messages.length, 40);
+  assert.equal(
+    request.messages.at(-1)?.role === "user"
+      ? request.messages.at(-1)?.content
+      : undefined,
+    "latest",
+  );
+});
