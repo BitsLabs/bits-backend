@@ -5,7 +5,7 @@ import { consumeAIQuota } from "../../../lib/aiQuota";
 import { authenticate } from "../../../lib/auth";
 import { AppError, handleError } from "../../../lib/errors";
 import { MODEL_POLICY } from "../../../lib/models";
-import { buildDiagnostics, getModelClient } from "../../../lib/openrouter";
+import { buildDiagnostics, getModelClient } from "../../../lib/providers";
 import { quizSystemPrompt } from "../../../lib/prompts";
 import { rateLimit } from "../../../lib/rateLimit";
 import { validateQuizRequest } from "../../../lib/validation";
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     await consumeAIQuota(session);
 
     const model = MODEL_POLICY.quiz;
-    const completion = await getModelClient().chat.completions.create({
+    const completion = await getModelClient(model).chat.completions.create({
       model,
       response_format: { type: "json_object" },
       messages: [

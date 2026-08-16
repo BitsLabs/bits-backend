@@ -1,31 +1,47 @@
 export type BitsFeature = "cards" | "summary" | "quiz" | "tutor" | "chat";
 
+export type BitsProvider = "openai" | "openrouter";
+
 /**
- * Model IDs are OpenRouter slugs, not first-party Anthropic IDs — OpenRouter
- * namespaces by provider (`anthropic/claude-haiku-4.5`, not `claude-haiku-4-5`).
- * Sending a first-party ID here 404s at the gateway.
+ * OpenRouter namespaces model IDs by provider (`anthropic/claude-haiku-4.5`),
+ * OpenAI does not. The slash is what distinguishes them, and what `providerFor`
+ * routes on — so adding a model can't silently point at the wrong client.
  */
-export type BitsModel = "anthropic/claude-haiku-4.5";
+export type BitsModel =
+  | "gpt-5.4"
+  | "gpt-5.4-mini"
+  | "gpt-5.4-nano"
+  | "gpt-5.5"
+  | "anthropic/claude-haiku-4.5";
 
-export const DEFAULT_MODEL: BitsModel = "anthropic/claude-haiku-4.5";
+export const DEFAULT_LEGACY_MODEL: BitsModel = "gpt-5.4-mini";
+export const DEFAULT_CHAT_MODEL: BitsModel = "anthropic/claude-haiku-4.5";
 
 /**
- * Every feature is on Haiku 4.5 for now. The policy map stays per-feature so a
- * single surface (e.g. chat) can be moved to a stronger model without touching
- * the routes.
+ * The four legacy endpoints stay on OpenAI deliberately: they serve the build
+ * that's live on the App Store, and a backend deploy must not change the model
+ * under users who cannot update. Only the new chat runs on OpenRouter.
  */
 export const MODEL_POLICY: Record<BitsFeature, BitsModel> = {
-  cards: DEFAULT_MODEL,
-  summary: DEFAULT_MODEL,
-  quiz: DEFAULT_MODEL,
-  tutor: DEFAULT_MODEL,
-  chat: DEFAULT_MODEL,
+  cards: DEFAULT_LEGACY_MODEL,
+  summary: DEFAULT_LEGACY_MODEL,
+  quiz: DEFAULT_LEGACY_MODEL,
+  tutor: DEFAULT_LEGACY_MODEL,
+  chat: DEFAULT_CHAT_MODEL,
 };
 
-/** Retained for callers that used the light policy; both tiers are Haiku 4.5 today. */
+/** Retained for callers that used the light policy. */
 export const MODEL_POLICY_LIGHT: Record<BitsFeature, BitsModel> = MODEL_POLICY;
 
+export function providerFor(model: BitsModel): BitsProvider {
+  return model.includes("/") ? "openrouter" : "openai";
+}
+
 const MODEL_LABELS: Record<BitsModel, string> = {
+  "gpt-5.4": "GPT-5.4",
+  "gpt-5.4-mini": "GPT-5.4 Mini",
+  "gpt-5.4-nano": "GPT-5.4 Nano",
+  "gpt-5.5": "GPT-5.5",
   "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
 };
 

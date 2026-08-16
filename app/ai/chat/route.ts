@@ -6,7 +6,7 @@ import { consumeAIQuota } from "../../../lib/aiQuota";
 import { authenticate } from "../../../lib/auth";
 import { AppError, handleError } from "../../../lib/errors";
 import { MODEL_POLICY } from "../../../lib/models";
-import { buildDiagnostics, getModelClient } from "../../../lib/openrouter";
+import { buildDiagnostics, getModelClient } from "../../../lib/providers";
 import { chatSystemPrompt } from "../../../lib/prompts";
 import { rateLimit } from "../../../lib/rateLimit";
 import { CHAT_TOOLS } from "../../../lib/tools";
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     await consumeAIQuota(session);
 
     const model = MODEL_POLICY.chat;
-    const completion = await getModelClient().chat.completions.create({
+    const completion = await getModelClient(model).chat.completions.create({
       model,
       tools: CHAT_TOOLS,
       tool_choice: "auto",
