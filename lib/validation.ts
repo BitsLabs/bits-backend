@@ -21,6 +21,15 @@ export const LIMITS = {
   // ~4.5 MB of base64, i.e. roughly a 3.3 MB JPEG. The app downscales before
   // encoding, so this is a backstop rather than the working size.
   maxImageBase64Length: 4_500_000,
+  // Course generation.
+  maxSubjectLength: 500,
+  maxConstraintsLength: 2_000,
+  maxUnitItems: 12,
+  maxUnitItemLength: 300,
+  maxExistingFronts: 200,
+  maxCardsPerUnit: 60,
+  maxChecksPerUnit: 20,
+  maxPerformanceNoteLength: 2_000,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -91,6 +100,23 @@ export type ChatRequestBody = {
   deckSummaries?: string;
 };
 
+export type SyllabusRequestBody = {
+  subject: string;
+  constraints: string;
+  dailyMinutes: number;
+  weeksAvailable?: number;
+};
+
+export type UnitRequestBody = {
+  subject: string;
+  constraints: string;
+  unit: { title: string; objective: string; days: number; items: string[] };
+  cardCount: number;
+  checkCount: number;
+  existingFronts: string[];
+  performanceNote?: string;
+};
+
 function invalid(field: string, message: string): never {
   throw new AppError("invalid_input", `${field}: ${message}`, 400);
 }
@@ -153,6 +179,32 @@ function validateOptionalString(
   }
 
   return trimmed;
+}
+
+/**
+ * Like `validatePositiveInteger` but allows a floor of zero and states both
+ * bounds, which the course endpoints need (checkCount may legitimately be 0).
+ */
+function clampInteger(
+  value: unknown,
+  field: string,
+  minValue: number,
+  maxValue: number,
+  defaultValue: number,
+): number {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    invalid(field, "must be an integer");
+  }
+
+  if (value < minValue || value > maxValue) {
+    invalid(field, `must be between ${minValue} and ${maxValue}`);
+  }
+
+  return value;
 }
 
 function validatePositiveInteger(
@@ -496,5 +548,136 @@ export function validateTutorRequest(body: unknown): TutorRequestBody {
       "message",
       LIMITS.maxUserMessageLength,
     ),
+  };
+}
+
+/**
+ * Course generation input.
+ *
+ * `constraints` is validated as a first-class field rather than folded into
+ * `subject` because it has to survive into every later generation call. A goal
+ * of "Portuguese" that quietly loses "European, not Brazilian" produces
+ * material that is confidently wrong in a way the learner cannot detect.
+ */
+export function validateSyllabusRequest(body: unknown): SyllabusRequestBody {
+  const payload = assertPlainObject(body, "body");
+
+  const subject = validateRequiredString(
+    payload.subject,
+    "subject",
+    LIMITS.maxSubjectLength,
+  );
+
+  const constraints =
+    payload.constraints === undefined || payload.constraints === null
+      ? ""
+      : validateOptionalString(
+          payload.constraints,
+          "constraints",
+          LIMITS.maxConstraintsLength,
+        ) ?? "";
+
+  const dailyMinutes = clampInteger(
+    payload.dailyMinutes,
+    "dailyMinutes",
+    1,
+    180,
+    10,
+  );
+
+  const weeksAvailable =
+    payload.weeksAvailable === undefined || payload.weeksAvailable === null
+      ? undefined
+      : clampInteger(payload.weeksAvailable, "weeksAvailable", 1, 520, 12);
+
+  return { subject, constraints, dailyMinutes, weeksAvailable };
+}
+
+export function validateUnitRequest(body: unknown): UnitRequestBody {
+  const payload = assertPlainObject(body, "body");
+
+  const subject = validateRequiredString(
+    payload.subject,
+    "subject",
+    LIMITS.maxSubjectLength,
+  );
+
+  const constraints =
+    payload.constraints === undefined || payload.constraints === null
+      ? ""
+      : validateOptionalString(
+          payload.constraints,
+          "constraints",
+          LIMITS.maxConstraintsLength,
+        ) ?? "";
+
+  const rawUnit = assertPlainObject(payload.unit, "unit");
+  const title = validateRequiredString(
+    rawUnit.title,
+    "unit.title",
+    LIMITS.maxUnitItemLength,
+  );
+  const objective =
+    validateOptionalString(
+      rawUnit.objective,
+      "unit.objective",
+      LIMITS.maxUnitItemLength,
+    ) ?? "";
+  const days = clampInteger(rawUnit.days, "unit.days", 1, 60, 3);
+
+  if (!Array.isArray(rawUnit.items)) {
+    invalid("unit.items", "must be an array of strings");
+  }
+
+  const items = rawUnit.items
+    .slice(0, LIMITS.maxUnitItems)
+    .map((item, index) =>
+      validateRequiredString(
+        item,
+        `unit.items[${index}]`,
+        LIMITS.maxUnitItemLength,
+      ),
+    );
+
+  const cardCount = clampInteger(
+    payload.cardCount,
+    "cardCount",
+    1,
+    LIMITS.maxCardsPerUnit,
+    12,
+  );
+  const checkCount = clampInteger(
+    payload.checkCount,
+    "checkCount",
+    0,
+    LIMITS.maxChecksPerUnit,
+    4,
+  );
+
+  const existingFronts = Array.isArray(payload.existingFronts)
+    ? payload.existingFronts
+        .filter((front): front is string => typeof front === "string")
+        .map((front) => front.trim())
+        .filter((front) => front.length > 0)
+        .slice(0, LIMITS.maxExistingFronts)
+    : [];
+
+  const performanceNote =
+    payload.performanceNote === undefined || payload.performanceNote === null
+      ? undefined
+      : validateOptionalString(
+          payload.performanceNote,
+          "performanceNote",
+          LIMITS.maxPerformanceNoteLength,
+        );
+
+  return {
+    subject,
+    constraints,
+    unit: { title, objective, days, items },
+    cardCount,
+    checkCount,
+    existingFronts,
+    performanceNote,
   };
 }
