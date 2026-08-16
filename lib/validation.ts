@@ -17,6 +17,10 @@ export const LIMITS = {
   maxChatToolResultLength: 20_000,
   maxChatMessages: 40,
   maxToolCallsPerMessage: 8,
+  maxImagesPerMessage: 4,
+  // ~4.5 MB of base64, i.e. roughly a 3.3 MB JPEG. The app downscales before
+  // encoding, so this is a backstop rather than the working size.
+  maxImageBase64Length: 4_500_000,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -61,8 +65,24 @@ export type ChatToolCall = {
   arguments: string;
 };
 
+/**
+ * An image the user attached. PDFs never arrive here — the app extracts their
+ * text with PDFKit on-device and folds it into the message, which keeps large
+ * documents out of the request and reuses the existing PDF pipeline.
+ */
+export type ChatImageAttachment = {
+  mediaType: string;
+  /** Base64, no data-URI prefix. */
+  data: string;
+};
+
 export type ChatMessage =
-  | { role: "user" | "assistant"; content?: string; toolCalls: ChatToolCall[] }
+  | {
+      role: "user" | "assistant";
+      content?: string;
+      toolCalls: ChatToolCall[];
+      images: ChatImageAttachment[];
+    }
   | { role: "tool"; toolCallId: string; content: string };
 
 export type ChatRequestBody = {
@@ -322,24 +342,29 @@ export function validateChatRequest(body: unknown): ChatRequestBody {
     }
 
     const toolCalls = validateToolCalls(message.toolCalls, index);
+    const images = validateImages(message.images, index);
 
     // An assistant turn that only calls tools carries no prose, so content is
-    // optional there — but a message with neither content nor tool calls is
-    // meaningless and would be rejected by the model anyway.
+    // optional there — but a message with neither content, tool calls, nor an
+    // attachment is meaningless and would be rejected by the model anyway.
     const content = validateOptionalString(
       message.content,
       `messages[${index}].content`,
       LIMITS.maxChatMessageLength,
     );
 
-    if (!content && toolCalls.length === 0) {
+    if (!content && toolCalls.length === 0 && images.length === 0) {
       invalid(
         `messages[${index}]`,
-        "must have content or toolCalls",
+        "must have content, toolCalls, or images",
       );
     }
 
-    return { role, content, toolCalls };
+    if (images.length > 0 && role !== "user") {
+      invalid(`messages[${index}].images`, "are only allowed on user messages");
+    }
+
+    return { role, content, toolCalls, images };
   });
 
   if (messages.at(-1)?.role === "assistant") {
@@ -354,6 +379,65 @@ export function validateChatRequest(body: unknown): ChatRequestBody {
       LIMITS.maxContextLength,
     ),
   };
+}
+
+const ALLOWED_IMAGE_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+function validateImages(
+  value: unknown,
+  messageIndex: number,
+): ChatImageAttachment[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    invalid(`messages[${messageIndex}].images`, "must be an array");
+  }
+
+  if (value.length > LIMITS.maxImagesPerMessage) {
+    invalid(
+      `messages[${messageIndex}].images`,
+      `must contain at most ${LIMITS.maxImagesPerMessage} images`,
+    );
+  }
+
+  return value.map((entry, imageIndex): ChatImageAttachment => {
+    const field = `messages[${messageIndex}].images[${imageIndex}]`;
+    const image = assertPlainObject(entry, field);
+
+    const mediaType = validateRequiredString(
+      image.mediaType,
+      `${field}.mediaType`,
+      100,
+    );
+
+    if (!ALLOWED_IMAGE_MEDIA_TYPES.has(mediaType)) {
+      invalid(
+        `${field}.mediaType`,
+        `must be one of ${[...ALLOWED_IMAGE_MEDIA_TYPES].join(", ")}`,
+      );
+    }
+
+    const data = validateRequiredString(
+      image.data,
+      `${field}.data`,
+      LIMITS.maxImageBase64Length,
+    );
+
+    // Reject anything that isn't base64 before it reaches the model — a
+    // malformed data URI comes back as an opaque upstream 400.
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+      invalid(`${field}.data`, "must be base64 without a data URI prefix");
+    }
+
+    return { mediaType, data };
+  });
 }
 
 function validateToolCalls(value: unknown, messageIndex: number): ChatToolCall[] {

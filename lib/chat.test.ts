@@ -50,10 +50,70 @@ test("rejects a transcript ending on an assistant turn", () => {
   );
 });
 
-test("rejects a message with neither content nor tool calls", () => {
+test("rejects a message with neither content, tool calls, nor images", () => {
   assert.throws(
     () => validateChatRequest({ messages: [{ role: "user" }] }),
-    /must have content or toolCalls/,
+    /must have content, toolCalls, or images/,
+  );
+});
+
+test("accepts an image attachment on a user turn", () => {
+  const request = validateChatRequest({
+    messages: [
+      {
+        role: "user",
+        content: "What's on this slide?",
+        images: [{ mediaType: "image/jpeg", data: "AAAA" }],
+      },
+    ],
+  });
+
+  const message = request.messages[0];
+  assert.equal(message.role === "user" ? message.images.length : 0, 1);
+});
+
+test("accepts an image with no accompanying text", () => {
+  const request = validateChatRequest({
+    messages: [
+      { role: "user", images: [{ mediaType: "image/png", data: "AAAA" }] },
+    ],
+  });
+
+  assert.equal(request.messages.length, 1);
+});
+
+test("rejects an unsupported image media type", () => {
+  assert.throws(
+    () =>
+      validateChatRequest({
+        messages: [
+          {
+            role: "user",
+            content: "hi",
+            images: [{ mediaType: "image/heic", data: "AAAA" }],
+          },
+        ],
+      }),
+    /must be one of/,
+  );
+});
+
+test("rejects a data URI prefix in image data", () => {
+  // The route builds the data URI itself; a prefixed payload would double it.
+  assert.throws(
+    () =>
+      validateChatRequest({
+        messages: [
+          {
+            role: "user",
+            content: "hi",
+            images: [
+              { mediaType: "image/jpeg", data: "data:image/jpeg;base64,AAAA" },
+            ],
+          },
+        ],
+      }),
+    /must be base64 without a data URI prefix/,
   );
 });
 

@@ -111,5 +111,25 @@ function toModelMessage(
     };
   }
 
+  // A user turn with attachments becomes multimodal content parts. Haiku 4.5
+  // accepts images; PDFs never get here because the app extracts their text
+  // on-device and folds it into `content`.
+  if (message.images.length > 0) {
+    const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+    if (message.content) {
+      parts.push({ type: "text", text: message.content });
+    }
+
+    for (const image of message.images) {
+      parts.push({
+        type: "image_url",
+        image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+      });
+    }
+
+    return { role: "user", content: parts };
+  }
+
   return { role: "user", content: message.content ?? "" };
 }
