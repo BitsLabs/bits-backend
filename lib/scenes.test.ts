@@ -15,10 +15,10 @@ const SCENE = {
   role: "a server at a café counter in Lisbon",
   goal: "order a coffee and pay for it",
   lines: [
-    { target: "Um café, se faz favor.", native: "A coffee, please." },
-    { target: "Mais alguma coisa?", native: "Anything else?", note: "You will hear this, not say it." },
-    { target: "Só isso, obrigado.", native: "That's all, thanks." },
-    { target: "Quanto é?", native: "How much is it?" },
+    { target: "Um café, se faz favor.", native: "A coffee, please.", speaker: "you" },
+    { target: "Mais alguma coisa?", native: "Anything else?", speaker: "them", note: "You will hear this, not say it." },
+    { target: "Só isso, obrigado.", native: "That's all, thanks.", speaker: "you" },
+    { target: "Quanto é?", native: "How much is it?", speaker: "you" },
   ],
   exercises: [
     {
@@ -226,7 +226,10 @@ test("the converse prompt tells the model to play the part, not teach", () => {
     role: "a server at a café counter",
     situation: "The morning rush.",
     goal: "order a coffee and pay",
-    lines: [{ target: "Um café, se faz favor.", native: "A coffee, please." }],
+    lines: [
+      { target: "Um café, se faz favor.", native: "A coffee, please.", speaker: "you" },
+      { target: "Mais alguma coisa?", native: "Anything else?", speaker: "them" },
+    ],
     transcript: [{ speaker: "character", text: "Bom dia!" }],
     learnerTurn: "Um café se faz favor",
   });
@@ -252,11 +255,57 @@ test("the converse prompt says so when the learner is opening", () => {
     role: "a server",
     situation: "A café.",
     goal: "order",
-    lines: [{ target: "Olá", native: "Hi" }],
+    lines: [{ target: "Olá", native: "Hi", speaker: "you" }],
     transcript: [],
     learnerTurn: "Olá",
   });
   assert.ok(prompt.includes("this is the learner's opening line"));
+});
+
+test("the converse prompt separates the learner's lines from the character's", () => {
+  // It said "Quanto é?" to its own customer: the learner's line, in the
+  // character's mouth.
+  const prompt = conversePrompt({
+    subject: "European Portuguese",
+    constraints: "",
+    nativeLanguage: "English",
+    role: "a server",
+    situation: "A café counter.",
+    goal: "order a coffee",
+    lines: [
+      { target: "Um café, se faz favor.", native: "A coffee, please.", speaker: "you" },
+      { target: "Mais alguma coisa?", native: "Anything else?", speaker: "them" },
+    ],
+    transcript: [],
+    learnerTurn: "Um café",
+  });
+
+  assert.ok(prompt.includes("taught to say:\n- Um café, se faz favor."));
+  assert.ok(prompt.includes("taught to expect from you:\n- Mais alguma coisa?"));
+  assert.ok(prompt.includes("Never say one of the learner's own lines back at them"));
+});
+
+test("an unmarked speaker defaults to the learner rather than dropping the line", () => {
+  const scene = parseScene(
+    JSON.stringify({
+      ...SCENE,
+      lines: [{ target: "Olá.", native: "Hi." }],
+    }),
+  );
+  assert.equal(scene?.lines[0]?.speaker, "you");
+});
+
+test("the scene prompt refuses to drill production of a line the learner only hears", () => {
+  const prompt = scenePrompt({
+    subject: "Portuguese",
+    constraints: "",
+    nativeLanguage: "English",
+    unitTitle: "At the café",
+    unitObjective: "Order and pay",
+    seenLines: [],
+    exerciseCount: 5,
+  });
+  assert.ok(prompt.includes('Only ever ask the learner to produce a line marked "you"'));
 });
 
 test("parses a conversation turn", () => {

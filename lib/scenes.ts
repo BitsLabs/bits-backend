@@ -24,8 +24,18 @@
 export interface SceneLine {
   /** What the learner says or hears, in the language being learned. */
   target: string;
-  /** What it means. */
+  /** What it means, in the learner's own language. */
   native: string;
+  /**
+   * Whose line it is.
+   *
+   * A scene contains both halves of an exchange, and they are not learned the
+   * same way: your lines have to be produced from nothing, theirs only have to
+   * be understood when they arrive. Without this the player drills a learner on
+   * saying the server's lines back, and the character in the live scene asks
+   * the customer how much it costs.
+   */
+  speaker: "you" | "them";
   /** Optional register or usage note. Kept to one sentence. */
   note?: string;
 }
@@ -118,7 +128,9 @@ A scene is a situation the learner will really be in, and the few things they
 would really say in it. Not a topic, not a grammar point. "Ordering at a
 counter", "asking a neighbour about the bins", "handing over a shift".
 
-Write 4 to 5 lines. Rules for the lines:
+Write 4 to 5 lines. Mark each one with speaker: "you" for a line the learner
+says, "them" for a line the learner will hear and only needs to understand.
+A scene needs both. Rules for the lines:
 - Only what a real person says out loud in that situation. If a phrase appears
   in textbooks but not in mouths, leave it out.
 - Prefer the short natural form over the complete grammatical sentence.
@@ -136,6 +148,10 @@ Then write exactly ${input.exerciseCount} exercises drilling those lines.
 Every exercise must be answerable from the lines above and nothing else. Never
 require a word the learner has not met. Vary the kinds. Order them so
 recognition comes before production.
+
+Only ever ask the learner to produce a line marked "you". A line marked "them"
+may be tested for understanding, or used as the setup for a "choose", but never
+made the answer to a "tap", "order" or "type".
 
 The kinds, and what each must contain:
 
@@ -166,7 +182,7 @@ Finally, describe how the scene is acted out:
   "order a coffee and pay for it"
 
 Return JSON only, no prose, no code fence:
-{"title":"","situation":"","role":"","goal":"","lines":[{"target":"","native":"","note":""}],"exercises":[]}`;
+{"title":"","situation":"","role":"","goal":"","lines":[{"target":"","native":"","speaker":"you","note":""}],"exercises":[]}`;
 }
 
 /**
@@ -189,9 +205,23 @@ export function conversePrompt(input: {
   transcript: { speaker: "learner" | "character"; text: string }[];
   learnerTurn: string;
 }): string {
-  const script = input.lines
-    .map((line) => `- ${line.target}  (${line.native})`)
-    .join("\n");
+  const mine = input.lines.filter((line) => line.speaker === "them");
+  const theirs = input.lines.filter((line) => line.speaker !== "them");
+
+  const script = [
+    theirs.length > 0
+      ? `Lines the learner has been taught to say:\n${theirs
+          .map((line) => `- ${line.target}  (${line.native})`)
+          .join("\n")}`
+      : "",
+    mine.length > 0
+      ? `Lines the learner has been taught to expect from you:\n${mine
+          .map((line) => `- ${line.target}  (${line.native})`)
+          .join("\n")}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const history =
     input.transcript.length > 0
@@ -206,8 +236,10 @@ You are: ${input.role}
 The situation: ${input.situation}
 What the learner is trying to do: ${input.goal}
 
-The learner has been taught these lines and no others:
 ${script}
+
+Never say one of the learner's own lines back at them. Asking your own customer
+how much it costs is the giveaway that you have stopped playing the part.
 
 So far:
 ${history}
@@ -318,8 +350,16 @@ export function parseScene(raw: string): Scene | null {
         const target = str(line.target);
         const native = str(line.native);
         if (target.length === 0 || native.length === 0) return [];
+        // Defaulting to "you" rather than dropping: an unmarked line is more
+        // likely a line the learner says than a modelling failure worth
+        // losing content over.
+        const speaker: "you" | "them" = line.speaker === "them" ? "them" : "you";
         const note = str(line.note);
-        return [note.length > 0 ? { target, native, note } : { target, native }];
+        return [
+          note.length > 0
+            ? { target, native, speaker, note }
+            : { target, native, speaker },
+        ];
       })
     : [];
 

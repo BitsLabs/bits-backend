@@ -149,7 +149,7 @@ export type ConverseRequestBody = {
   role: string;
   situation: string;
   goal: string;
-  lines: { target: string; native: string; note?: string }[];
+  lines: { target: string; native: string; speaker: "you" | "them"; note?: string }[];
   transcript: { speaker: "learner" | "character"; text: string }[];
   learnerTurn: string;
 };
@@ -835,7 +835,7 @@ export function validateConverseRequest(body: unknown): ConverseRequestBody {
 
   const lines = Array.isArray(payload.lines)
     ? payload.lines
-        .flatMap((entry): { target: string; native: string; note?: string }[] => {
+        .flatMap((entry): ConverseRequestBody["lines"] => {
           if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
           const line = entry as Record<string, unknown>;
           const target =
@@ -847,11 +847,16 @@ export function validateConverseRequest(body: unknown): ConverseRequestBody {
               ? line.native.trim().slice(0, LIMITS.maxSceneLineLength)
               : "";
           if (target.length === 0 || native.length === 0) return [];
+          const speaker: "you" | "them" = line.speaker === "them" ? "them" : "you";
           const note =
             typeof line.note === "string"
               ? line.note.trim().slice(0, LIMITS.maxSceneLineLength)
               : "";
-          return [note.length > 0 ? { target, native, note } : { target, native }];
+          return [
+            note.length > 0
+              ? { target, native, speaker, note }
+              : { target, native, speaker },
+          ];
         })
         .slice(0, LIMITS.maxSceneLines)
     : [];
