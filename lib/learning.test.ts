@@ -230,7 +230,25 @@ test("grades parse into a verdict, a scheduling grade and feedback", () => {
 
 test("an out-of-range grade is clamped, never trusted", () => {
   assert.equal(parseGrade(JSON.stringify({ verdict: "correct", grade: 9 })).grade, 3);
-  assert.equal(parseGrade(JSON.stringify({ verdict: "correct", grade: -4 })).grade, 0);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "incorrect", grade: -4 })).grade, 0);
+});
+
+test("a grade that contradicts its verdict is pulled back into line", () => {
+  // Seen in production: a confidently wrong answer came back "incorrect" with a
+  // grade of 1, which would have scheduled it as merely hard. The verdict is
+  // what the learner reads, so it wins over the number they never see.
+  assert.equal(parseGrade(JSON.stringify({ verdict: "incorrect", grade: 1 })).grade, 0);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "incorrect", grade: 3 })).grade, 0);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "correct", grade: 0 })).grade, 2);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "partial", grade: 0 })).grade, 1);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "partial", grade: 3 })).grade, 2);
+});
+
+test("a verdict that agrees with its grade is left alone", () => {
+  assert.equal(parseGrade(JSON.stringify({ verdict: "correct", grade: 3 })).grade, 3);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "correct", grade: 2 })).grade, 2);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "partial", grade: 1 })).grade, 1);
+  assert.equal(parseGrade(JSON.stringify({ verdict: "incorrect", grade: 0 })).grade, 0);
 });
 
 test("an unrecognised verdict falls back to incorrect", () => {

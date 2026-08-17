@@ -205,6 +205,19 @@ export interface GradeResult {
   feedback: string;
 }
 
+/**
+ * The 0 to 3 range each verdict is allowed to schedule within.
+ *
+ * "incorrect" collapses to 0 rather than clamping to a range, because anything
+ * above 0 tells the scheduler the learner half knew it and pushes the card away
+ * for days.
+ */
+const GRADE_BAND: Record<GradeResult["verdict"], (grade: number) => number> = {
+  correct: (grade) => Math.max(2, grade),
+  partial: (grade) => Math.min(2, Math.max(1, grade)),
+  incorrect: () => 0,
+};
+
 export function parseGrade(raw: string): GradeResult {
   const parsed = JSON.parse(stripFence(raw)) as Record<string, unknown>;
 
@@ -220,7 +233,11 @@ export function parseGrade(raw: string): GradeResult {
 
   return {
     verdict,
-    grade,
+    // The two fields can disagree: in testing, a confidently wrong answer came
+    // back "incorrect" with a grade of 1, which would have scheduled it as
+    // merely hard. The verdict is the judgement the learner is shown, so it
+    // wins, and the grade is pulled into the band that matches it.
+    grade: GRADE_BAND[verdict](grade),
     feedback:
       typeof parsed.feedback === "string" ? parsed.feedback.trim() : "",
   };
