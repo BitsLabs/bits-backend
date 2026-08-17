@@ -240,6 +240,11 @@ export const FEATURE_TOOLS: Record<
             type: "string",
             description: "Optional ISO 8601 date (YYYY-MM-DD) they are working toward.",
           },
+          deckId: {
+            type: "string",
+            description:
+              "Optional existing deck ID to build the course around, from list_decks. Use this when the user wants a course based on cards they already have — the course will teach and review those cards instead of starting from an empty deck. Omit to start fresh.",
+          },
         },
         required: ["title", "subject", "dailyMinutes"],
         additionalProperties: false,
