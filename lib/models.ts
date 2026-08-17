@@ -5,7 +5,8 @@ export type BitsFeature =
   | "tutor"
   | "chat"
   | "syllabus"
-  | "unit";
+  | "unit"
+  | "grade";
 
 export type BitsProvider = "openai" | "openrouter";
 
@@ -39,6 +40,9 @@ export const MODEL_POLICY: Record<BitsFeature, BitsModel> = {
   // shipped clients depending on it.
   syllabus: DEFAULT_CHAT_MODEL,
   unit: DEFAULT_CHAT_MODEL,
+  // Grading runs while the learner waits, so it is the one call where latency
+  // is felt. Haiku is both the cheapest and the fastest option available.
+  grade: DEFAULT_CHAT_MODEL,
 };
 
 /** Retained for callers that used the light policy. */
