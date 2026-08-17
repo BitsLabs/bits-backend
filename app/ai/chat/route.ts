@@ -9,7 +9,7 @@ import { MODEL_POLICY } from "../../../lib/models";
 import { buildDiagnostics, getModelClient } from "../../../lib/providers";
 import { chatSystemPrompt } from "../../../lib/prompts";
 import { rateLimit } from "../../../lib/rateLimit";
-import { CHAT_TOOLS } from "../../../lib/tools";
+import { toolsFor } from "../../../lib/tools";
 import { validateChatRequest, type ChatMessage } from "../../../lib/validation";
 
 export const runtime = "nodejs";
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const model = MODEL_POLICY.chat;
     const completion = await getModelClient(model).chat.completions.create({
       model,
-      tools: CHAT_TOOLS,
+      tools: toolsFor(body.clientFeatures),
       tool_choice: "auto",
       max_tokens: 4096,
       messages: [

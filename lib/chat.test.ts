@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { validateChatRequest } from "./validation.ts";
+import { toolsFor } from "./tools.ts";
 
 test("accepts a plain user turn", () => {
   const request = validateChatRequest({
@@ -146,4 +147,35 @@ test("keeps only the most recent messages", () => {
       : undefined,
     "latest",
   );
+});
+
+test("a client that declares no features gets only the base tools", () => {
+  const names = toolsFor([]).map((tool) => tool.function.name);
+  assert.ok(names.includes("create_flashcards"));
+  assert.ok(!names.includes("create_goal"));
+});
+
+test("create_goal is unlocked by declaring the goals feature", () => {
+  const names = toolsFor(["goals"]).map((tool) => tool.function.name);
+  assert.ok(names.includes("create_goal"));
+});
+
+test("an unknown feature is ignored rather than failing the turn", () => {
+  const names = toolsFor(["not-a-real-feature"]).map((t) => t.function.name);
+  assert.deepEqual(names, toolsFor([]).map((t) => t.function.name));
+});
+
+test("chat requests without clientFeatures are treated as legacy clients", () => {
+  const body = validateChatRequest({
+    messages: [{ role: "user", content: "hi" }],
+  });
+  assert.deepEqual(body.clientFeatures, []);
+});
+
+test("clientFeatures survives validation when present", () => {
+  const body = validateChatRequest({
+    messages: [{ role: "user", content: "hi" }],
+    clientFeatures: ["goals"],
+  });
+  assert.deepEqual(body.clientFeatures, ["goals"]);
 });

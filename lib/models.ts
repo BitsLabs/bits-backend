@@ -1,4 +1,11 @@
-export type BitsFeature = "cards" | "summary" | "quiz" | "tutor" | "chat";
+export type BitsFeature =
+  | "cards"
+  | "summary"
+  | "quiz"
+  | "tutor"
+  | "chat"
+  | "syllabus"
+  | "unit";
 
 export type BitsProvider = "openai" | "openrouter";
 
@@ -28,6 +35,10 @@ export const MODEL_POLICY: Record<BitsFeature, BitsModel> = {
   quiz: DEFAULT_LEGACY_MODEL,
   tutor: DEFAULT_LEGACY_MODEL,
   chat: DEFAULT_CHAT_MODEL,
+  // Course generation is new, so it starts on the current model with no
+  // shipped clients depending on it.
+  syllabus: DEFAULT_CHAT_MODEL,
+  unit: DEFAULT_CHAT_MODEL,
 };
 
 /** Retained for callers that used the light policy. */
