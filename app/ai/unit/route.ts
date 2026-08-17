@@ -39,6 +39,8 @@ export async function POST(request: NextRequest) {
             subject: body.subject,
             constraints: body.constraints,
             unit: body.unit,
+            lessonCount: body.lessonCount,
+            recallCount: body.recallCount,
             cardCount: body.cardCount,
             checkCount: body.checkCount,
             existingFronts: body.existingFronts,
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (material.cards.length === 0) {
+    if (material.cards.length === 0 && material.lessons.length === 0) {
       throw new AppError(
         "ai_error",
         "No usable cards came back for that unit. Please try again.",

@@ -26,6 +26,20 @@ export interface GeneratedCard {
   back: string;
 }
 
+/** A short teaching moment: the thing a flashcard cannot do. */
+export interface GeneratedLesson {
+  concept: string;
+  explanation: string;
+  example: string;
+}
+
+/** An open question the learner answers in their own words. */
+export interface GeneratedRecall {
+  question: string;
+  /** What a good answer contains, used to grade, never shown as-is. */
+  rubric: string;
+}
+
 export interface GeneratedCheck {
   question: string;
   options: string[];
@@ -74,6 +88,8 @@ export function unitPrompt(input: {
   subject: string;
   constraints: string;
   unit: SyllabusUnit;
+  lessonCount: number;
+  recallCount: number;
   cardCount: number;
   checkCount: number;
   existingFronts: string[];
@@ -91,7 +107,7 @@ export function unitPrompt(input: {
     ? `\n\nHow the learner has been doing, use it to set difficulty:\n${input.performanceNote}`
     : "";
 
-  return `Write study material for one unit of a course.
+  return `Write a lesson for one unit of a course.
 
 Subject: ${input.subject}
 Unit: ${input.unit.title}
@@ -100,7 +116,21 @@ Topics to cover: ${input.unit.items.join("; ")}${CONSTRAINT_BLOCK(
     input.constraints,
   )}${avoid}${adapt}
 
-Write ${input.cardCount} flashcards and ${input.checkCount} check questions.
+Write four things:
+
+1. ${input.lessonCount} short teaching moments. Each takes one idea, explains it
+   in two or three plain sentences as you would to a smart beginner, and gives
+   one concrete worked example. This is teaching, not testing. Do not write it
+   as a question.
+
+2. ${input.recallCount} open questions the learner answers in their own words.
+   These are not multiple choice and have no options. For each, write a rubric
+   saying what a good answer must contain, which the learner never sees. Ask for
+   understanding, not for a definition to be recited back.
+
+3. ${input.cardCount} flashcards.
+
+4. ${input.checkCount} check questions.
 
 Rules for flashcards:
 - One fact per card. A card testing two things is two cards.
@@ -116,7 +146,84 @@ If you are not confident a fact is correct, leave it out. A missing card costs
 the learner nothing. A wrong card gets drilled until they believe it.
 
 Return JSON only, no prose, no code fence:
-{"cards":[{"front":"","back":""}],"checks":[{"question":"","options":["","","",""],"correctIndex":0,"explanation":""}]}`;
+{"lessons":[{"concept":"","explanation":"","example":""}],"recalls":[{"question":"","rubric":""}],"cards":[{"front":"","back":""}],"checks":[{"question":"","options":["","","",""],"correctIndex":0,"explanation":""}]}`;
+}
+
+/**
+ * Judges an answer the learner wrote in their own words.
+ *
+ * This is the part a flashcard app cannot do and the reason the model has to
+ * stay in the loop after generation. Free recall is the strongest form of
+ * practice and has always been the hardest to grade at scale.
+ *
+ * The feedback is written to teach rather than to score. "Incorrect" tells the
+ * learner nothing they did not already suspect; naming the specific thing they
+ * missed is the whole value.
+ */
+export function gradePrompt(input: {
+  subject: string;
+  constraints: string;
+  question: string;
+  rubric: string;
+  answer: string;
+}): string {
+  return `You are marking one answer a learner typed from memory.
+
+Subject: ${input.subject}${CONSTRAINT_BLOCK(input.constraints)}
+
+Question: ${input.question}
+What a good answer contains: ${input.rubric}
+The learner wrote: ${input.answer}
+
+Judge what they meant, not how they worded it. Accept paraphrase, shorthand,
+missing articles, and typos. Mark down only for content that is wrong or
+missing, never for style or for being brief.
+
+verdict:
+- "correct" if they have the substance, even loosely worded
+- "partial" if part is right and something important is missing
+- "incorrect" if the substance is wrong, or they said they do not know
+
+grade, on a 0 to 3 scale used for review scheduling:
+- 0 they did not know it
+- 1 they struggled or got a lot wrong
+- 2 they knew it
+- 3 they knew it cleanly and completely
+
+feedback: one or two sentences, speaking to the learner as "you". If they were
+right, add the one thing that sharpens it. If they were wrong, say what the
+answer actually is and why, in a way that makes it stick. Never just say
+"incorrect". Never praise an answer that was wrong.
+
+Return JSON only, no prose, no code fence:
+{"verdict":"","grade":0,"feedback":""}`;
+}
+
+export interface GradeResult {
+  verdict: "correct" | "partial" | "incorrect";
+  grade: number;
+  feedback: string;
+}
+
+export function parseGrade(raw: string): GradeResult {
+  const parsed = JSON.parse(stripFence(raw)) as Record<string, unknown>;
+
+  const verdict =
+    parsed.verdict === "correct" || parsed.verdict === "partial"
+      ? parsed.verdict
+      : "incorrect";
+
+  // A grade outside the scale is clamped rather than trusted; a bad number here
+  // silently corrupts a review schedule the learner cannot see.
+  const rawGrade = typeof parsed.grade === "number" ? Math.round(parsed.grade) : 0;
+  const grade = Math.min(3, Math.max(0, rawGrade));
+
+  return {
+    verdict,
+    grade,
+    feedback:
+      typeof parsed.feedback === "string" ? parsed.feedback.trim() : "",
+  };
 }
 
 /** Strips a code fence the model was told not to add but sometimes adds anyway. */
@@ -161,10 +268,49 @@ export function parseSyllabus(raw: string): SyllabusUnit[] {
 }
 
 export function parseUnitMaterial(raw: string): {
+  lessons: GeneratedLesson[];
+  recalls: GeneratedRecall[];
   cards: GeneratedCard[];
   checks: GeneratedCheck[];
 } {
   const parsed = JSON.parse(stripFence(raw)) as Record<string, unknown>;
+
+  const lessons = Array.isArray(parsed.lessons)
+    ? parsed.lessons.flatMap((entry): GeneratedLesson[] => {
+        if (!entry || typeof entry !== "object") return [];
+        const lesson = entry as Record<string, unknown>;
+        const concept =
+          typeof lesson.concept === "string" ? lesson.concept.trim() : "";
+        const explanation =
+          typeof lesson.explanation === "string"
+            ? lesson.explanation.trim()
+            : "";
+        if (!concept || !explanation) return [];
+        return [
+          {
+            concept,
+            explanation,
+            example:
+              typeof lesson.example === "string" ? lesson.example.trim() : "",
+          },
+        ];
+      })
+    : [];
+
+  const recalls = Array.isArray(parsed.recalls)
+    ? parsed.recalls.flatMap((entry): GeneratedRecall[] => {
+        if (!entry || typeof entry !== "object") return [];
+        const recall = entry as Record<string, unknown>;
+        const question =
+          typeof recall.question === "string" ? recall.question.trim() : "";
+        const rubric =
+          typeof recall.rubric === "string" ? recall.rubric.trim() : "";
+        // Without a rubric the answer cannot be graded fairly, so the item is
+        // dropped rather than graded on vibes.
+        if (!question || !rubric) return [];
+        return [{ question, rubric }];
+      })
+    : [];
 
   const cards = Array.isArray(parsed.cards)
     ? parsed.cards.flatMap((entry): GeneratedCard[] => {
@@ -213,5 +359,5 @@ export function parseUnitMaterial(raw: string): {
       })
     : [];
 
-  return { cards, checks };
+  return { lessons, recalls, cards, checks };
 }

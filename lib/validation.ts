@@ -32,6 +32,10 @@ export const LIMITS = {
   maxPerformanceNoteLength: 2_000,
   maxClientFeatures: 12,
   maxClientFeatureLength: 40,
+  maxRubricLength: 1_000,
+  maxLearnerAnswerLength: 2_000,
+  maxLessonsPerUnit: 12,
+  maxRecallsPerUnit: 12,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -111,10 +115,20 @@ export type SyllabusRequestBody = {
   weeksAvailable?: number;
 };
 
+export type GradeRequestBody = {
+  subject: string;
+  constraints: string;
+  question: string;
+  rubric: string;
+  answer: string;
+};
+
 export type UnitRequestBody = {
   subject: string;
   constraints: string;
   unit: { title: string; objective: string; days: number; items: string[] };
+  lessonCount: number;
+  recallCount: number;
   cardCount: number;
   checkCount: number;
   existingFronts: string[];
@@ -658,6 +672,21 @@ export function validateUnitRequest(body: unknown): UnitRequestBody {
       ),
     );
 
+  const lessonCount = clampInteger(
+    payload.lessonCount,
+    "lessonCount",
+    0,
+    LIMITS.maxLessonsPerUnit,
+    5,
+  );
+  const recallCount = clampInteger(
+    payload.recallCount,
+    "recallCount",
+    0,
+    LIMITS.maxRecallsPerUnit,
+    5,
+  );
+
   const cardCount = clampInteger(
     payload.cardCount,
     "cardCount",
@@ -694,9 +723,53 @@ export function validateUnitRequest(body: unknown): UnitRequestBody {
     subject,
     constraints,
     unit: { title, objective, days, items },
+    lessonCount,
+    recallCount,
     cardCount,
     checkCount,
     existingFronts,
     performanceNote,
+  };
+}
+
+/**
+ * One answer to mark.
+ *
+ * The rubric is required. Grading an open answer without a statement of what a
+ * good one contains means marking on impression, and an unfair mark on
+ * something the learner got right is worse than not asking at all.
+ */
+export function validateGradeRequest(body: unknown): GradeRequestBody {
+  const payload = assertPlainObject(body, "body");
+
+  return {
+    subject: validateRequiredString(
+      payload.subject,
+      "subject",
+      LIMITS.maxSubjectLength,
+    ),
+    constraints:
+      payload.constraints === undefined || payload.constraints === null
+        ? ""
+        : validateOptionalString(
+            payload.constraints,
+            "constraints",
+            LIMITS.maxConstraintsLength,
+          ) ?? "",
+    question: validateRequiredString(
+      payload.question,
+      "question",
+      LIMITS.maxUnitItemLength,
+    ),
+    rubric: validateRequiredString(
+      payload.rubric,
+      "rubric",
+      LIMITS.maxRubricLength,
+    ),
+    answer: validateRequiredString(
+      payload.answer,
+      "answer",
+      LIMITS.maxLearnerAnswerLength,
+    ),
   };
 }
