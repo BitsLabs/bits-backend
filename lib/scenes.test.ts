@@ -14,6 +14,8 @@ const SCENE = {
   situation: "You are at a café counter in Lisbon during the morning rush.",
   role: "a server at a café counter in Lisbon",
   goal: "order a coffee and pay for it",
+  opener: "Bom dia! Faz favor?",
+  openerNative: "Good morning! What can I get you?",
   lines: [
     { target: "Um café, se faz favor.", native: "A coffee, please.", speaker: "you" },
     { target: "Mais alguma coisa?", native: "Anything else?", speaker: "them", note: "You will hear this, not say it." },
@@ -60,6 +62,10 @@ test("parses a well-formed scene", () => {
   assert.equal(scene.title, "Ordering at the counter");
   assert.equal(scene.role, "a server at a café counter in Lisbon");
   assert.equal(scene.lines.length, 4);
+  // Without an opener the live scene starts on an empty screen and asks the
+  // person who does not yet know how to speak first.
+  assert.equal(scene.opener, "Bom dia! Faz favor?");
+  assert.equal(scene.openerNative, "Good morning! What can I get you?");
   assert.equal(scene.lines[1]?.note, "You will hear this, not say it.");
   assert.equal(scene.exercises.length, 4);
 });
@@ -306,6 +312,7 @@ test("the scene prompt refuses to drill production of a line the learner only he
     exerciseCount: 5,
   });
   assert.ok(prompt.includes('Only ever ask the learner to produce a line marked "you"'));
+  assert.ok(prompt.includes("before the learner has said anything"));
 });
 
 test("parses a conversation turn", () => {

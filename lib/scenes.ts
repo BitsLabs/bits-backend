@@ -180,9 +180,12 @@ Finally, describe how the scene is acted out:
 - role: who you will play, in one phrase. "a server at a café counter in Lisbon"
 - goal: what the learner has to achieve to be done. A task, not a sentence.
   "order a coffee and pay for it"
+- opener: the first thing you say, before the learner has said anything. What
+  that person really opens with: a greeting, a question, "next please". Short.
+  openerNative: what it means.
 
 Return JSON only, no prose, no code fence:
-{"title":"","situation":"","role":"","goal":"","lines":[{"target":"","native":"","speaker":"you","note":""}],"exercises":[]}`;
+{"title":"","situation":"","role":"","goal":"","opener":"","openerNative":"","lines":[{"target":"","native":"","speaker":"you","note":""}],"exercises":[]}`;
 }
 
 /**
@@ -377,6 +380,8 @@ export function parseScene(raw: string): Scene | null {
     situation: str(parsed.situation),
     role: str(parsed.role),
     goal: str(parsed.goal),
+    opener: str(parsed.opener),
+    openerNative: str(parsed.openerNative),
     lines,
     exercises,
   };
