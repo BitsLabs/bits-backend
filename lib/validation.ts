@@ -135,6 +135,7 @@ export type GradeRequestBody = {
 export type SceneRequestBody = {
   subject: string;
   constraints: string;
+  nativeLanguage: string;
   unitTitle: string;
   unitObjective: string;
   seenLines: string[];
@@ -144,6 +145,7 @@ export type SceneRequestBody = {
 export type ConverseRequestBody = {
   subject: string;
   constraints: string;
+  nativeLanguage: string;
   role: string;
   situation: string;
   goal: string;
@@ -791,6 +793,14 @@ export function validateSceneRequest(body: unknown): SceneRequestBody {
         "constraints",
         LIMITS.maxConstraintsLength,
       ) ?? "",
+    // Defaulted rather than required: an older client that does not send it
+    // should still get a lesson, and English is what those clients display.
+    nativeLanguage:
+      validateOptionalString(
+        payload.nativeLanguage,
+        "nativeLanguage",
+        LIMITS.maxSubjectLength,
+      ) ?? "English",
     unitTitle: validateRequiredString(
       payload.unitTitle,
       "unitTitle",
@@ -879,6 +889,12 @@ export function validateConverseRequest(body: unknown): ConverseRequestBody {
         "constraints",
         LIMITS.maxConstraintsLength,
       ) ?? "",
+    nativeLanguage:
+      validateOptionalString(
+        payload.nativeLanguage,
+        "nativeLanguage",
+        LIMITS.maxSubjectLength,
+      ) ?? "English",
     role: validateRequiredString(payload.role, "role", LIMITS.maxUnitItemLength),
     situation: validateRequiredString(
       payload.situation,

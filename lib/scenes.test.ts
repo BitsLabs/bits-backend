@@ -186,6 +186,7 @@ test("the scene prompt carries the constraints and what was already taught", () 
   const prompt = scenePrompt({
     subject: "European Portuguese for daily life in Lisbon",
     constraints: "European Portuguese only. Never Brazilian forms.",
+    nativeLanguage: "German",
     unitTitle: "At the café",
     unitObjective: "Order and pay",
     seenLines: ["Bom dia.", "Obrigado."],
@@ -198,12 +199,17 @@ test("the scene prompt carries the constraints and what was already taught", () 
   assert.ok(prompt.includes("exactly 6 exercises"));
   // The failure the whole scene format exists to avoid.
   assert.ok(prompt.includes("in textbooks but not in mouths"));
+  // Without this the model returned `native` as a copy of `target`, because
+  // nothing in the prompt said what the learner's own language was.
+  assert.ok(prompt.includes("learner's own language is German"));
+  assert.ok(prompt.includes("rather than repeat it"));
 });
 
 test("the scene prompt omits the seen block when nothing has been taught", () => {
   const prompt = scenePrompt({
     subject: "Portuguese",
     constraints: "",
+    nativeLanguage: "English",
     unitTitle: "At the café",
     unitObjective: "Order and pay",
     seenLines: [],
@@ -216,6 +222,7 @@ test("the converse prompt tells the model to play the part, not teach", () => {
   const prompt = conversePrompt({
     subject: "European Portuguese",
     constraints: "European Portuguese only.",
+    nativeLanguage: "German",
     role: "a server at a café counter",
     situation: "The morning rush.",
     goal: "order a coffee and pay",
@@ -225,6 +232,12 @@ test("the converse prompt tells the model to play the part, not teach", () => {
   });
 
   assert.ok(prompt.includes("Play the part, not a teacher"));
+  assert.ok(prompt.includes("plain German translation"));
+  // It told a learner that "se faz favor" is not used in Portugal. It is. A
+  // correction invented on a correct answer teaches someone to stop using
+  // something that works, so the prompt now has to earn every correction.
+  assert.ok(prompt.includes("If you are not sure the learner's version is wrong"));
+  assert.ok(prompt.includes("a regional variant"));
   assert.ok(prompt.includes("Do not praise"));
   assert.ok(prompt.includes("European Portuguese only."));
   assert.ok(prompt.includes("You: Bom dia!"));
@@ -235,6 +248,7 @@ test("the converse prompt says so when the learner is opening", () => {
   const prompt = conversePrompt({
     subject: "Portuguese",
     constraints: "",
+    nativeLanguage: "English",
     role: "a server",
     situation: "A café.",
     goal: "order",

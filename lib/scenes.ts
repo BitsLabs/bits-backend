@@ -98,12 +98,17 @@ const SEEN_BLOCK = (seen: string[]): string =>
 export function scenePrompt(input: {
   subject: string;
   constraints: string;
+  nativeLanguage: string;
   unitTitle: string;
   unitObjective: string;
   seenLines: string[];
   exerciseCount: number;
 }): string {
   return `You are writing one scene of a course in: ${input.subject}${CONSTRAINT_BLOCK(input.constraints)}
+
+The learner's own language is ${input.nativeLanguage}. Every "native" field below
+must be written in ${input.nativeLanguage}, and must actually translate the
+"target" field rather than repeat it.
 
 The scene covers this part of the course:
 Unit: ${input.unitTitle}
@@ -121,8 +126,10 @@ Write 4 to 5 lines. Rules for the lines:
   for. Do not mix formal and casual.
 - Where a line could be said differently in another region or by another
   generation, pick one and stay with it for the whole scene.
-- Add a note only where a learner would otherwise get it wrong. Most lines need
-  no note. One sentence when present.
+- Add a note only where a learner would otherwise get it wrong: a false friend,
+  a register trap, a form that means something else. Not trivia, not etymology,
+  not where a pastry comes from. Most lines need no note at all. One sentence
+  when present.
 
 Then write exactly ${input.exerciseCount} exercises drilling those lines.
 
@@ -174,6 +181,7 @@ Return JSON only, no prose, no code fence:
 export function conversePrompt(input: {
   subject: string;
   constraints: string;
+  nativeLanguage: string;
   role: string;
   situation: string;
   goal: string;
@@ -207,7 +215,8 @@ ${history}
 The learner just said: ${input.learnerTurn}
 
 Stay in character and reply as that person would, in the language being
-learned. One or two sentences. Keep to the vocabulary above wherever you can;
+learned. One or two sentences. Put a plain ${input.nativeLanguage} translation
+of your reply in replyNative: a translation, not a copy. Keep to the vocabulary above wherever you can;
 where you must go beyond it, use the simplest words that still sound like a
 real person.
 
@@ -220,9 +229,22 @@ want obvious. If they are handling it easily, speak more naturally and add a
 small complication a real person would add: a follow-up question, something out
 of stock, a price they did not expect.
 
-correction: if the learner's line would make a native speaker hesitate, give the
-better version and one sentence on why. Grammar that is merely imperfect but
-clearly understood is not worth correcting. Leave it null more often than not.
+correction: leave this null unless you are certain the learner is wrong.
+
+Correct only what a native speaker would genuinely not understand, or what is
+plainly ungrammatical. All of the following are correct and must never be
+"corrected":
+- a regional variant, or a phrasing more common somewhere else
+- a synonym, or a more or less formal way of saying the same thing
+- a shorter or blunter version than the one you taught
+- missing accents, missing punctuation, or lower case
+- anything you merely would have phrased differently
+
+If you are not sure the learner's version is wrong, it is not wrong. Say
+nothing. Telling someone a correct phrase is an error does more damage than
+missing a real mistake, because they will stop using something that works.
+
+When you do correct, give the better version and one sentence on why.
 
 goalMet: true once the learner has achieved what they set out to do.
 done: true when the exchange has reached a natural end. Never run past six

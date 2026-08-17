@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
           content: conversePrompt({
             subject: body.subject,
             constraints: body.constraints,
+            nativeLanguage: body.nativeLanguage,
             role: body.role,
             situation: body.situation,
             goal: body.goal,

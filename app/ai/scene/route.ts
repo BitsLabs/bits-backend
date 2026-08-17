@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
           content: scenePrompt({
             subject: body.subject,
             constraints: body.constraints,
+            nativeLanguage: body.nativeLanguage,
             unitTitle: body.unitTitle,
             unitObjective: body.unitObjective,
             seenLines: body.seenLines,
