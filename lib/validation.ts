@@ -30,6 +30,8 @@ export const LIMITS = {
   maxCardsPerUnit: 60,
   maxChecksPerUnit: 20,
   maxPerformanceNoteLength: 2_000,
+  maxClientFeatures: 12,
+  maxClientFeatureLength: 40,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -98,6 +100,8 @@ export type ChatRequestBody = {
   messages: ChatMessage[];
   /** Compact "id — name (n cards)" list so the agent can skip list_decks for simple asks. */
   deckSummaries?: string;
+  /** Capabilities this build can execute, unlocking feature-gated tools. */
+  clientFeatures: string[];
 };
 
 export type SyllabusRequestBody = {
@@ -423,6 +427,20 @@ export function validateChatRequest(body: unknown): ChatRequestBody {
     invalid("messages", "must not end with an assistant message");
   }
 
+  // Absent means an older build, which is exactly the case this exists for:
+  // it gets the base tool set and nothing it cannot execute.
+  const clientFeatures = Array.isArray(payload.clientFeatures)
+    ? payload.clientFeatures
+        .filter((feature): feature is string => typeof feature === "string")
+        .map((feature) => feature.trim())
+        .filter(
+          (feature) =>
+            feature.length > 0 &&
+            feature.length <= LIMITS.maxClientFeatureLength,
+        )
+        .slice(0, LIMITS.maxClientFeatures)
+    : [];
+
   return {
     messages,
     deckSummaries: validateOptionalString(
@@ -430,6 +448,7 @@ export function validateChatRequest(body: unknown): ChatRequestBody {
       "deckSummaries",
       LIMITS.maxContextLength,
     ),
+    clientFeatures,
   };
 }
 
