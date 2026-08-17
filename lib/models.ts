@@ -6,7 +6,9 @@ export type BitsFeature =
   | "chat"
   | "syllabus"
   | "unit"
-  | "grade";
+  | "grade"
+  | "scene"
+  | "converse";
 
 export type BitsProvider = "openai" | "openrouter";
 
@@ -43,6 +45,11 @@ export const MODEL_POLICY: Record<BitsFeature, BitsModel> = {
   // Grading runs while the learner waits, so it is the one call where latency
   // is felt. Haiku is both the cheapest and the fastest option available.
   grade: DEFAULT_CHAT_MODEL,
+  // A scene is generated ahead of the lesson, so it can afford to be slower.
+  scene: DEFAULT_CHAT_MODEL,
+  // The live scene is the one place the model has to hold a character and keep
+  // up with a person typing at it, so latency is the binding constraint.
+  converse: DEFAULT_CHAT_MODEL,
 };
 
 /** Retained for callers that used the light policy. */

@@ -36,6 +36,15 @@ export const LIMITS = {
   maxLearnerAnswerLength: 2_000,
   maxLessonsPerUnit: 12,
   maxRecallsPerUnit: 12,
+  // Scenes.
+  maxSceneLineLength: 400,
+  maxSceneLines: 12,
+  maxSeenLines: 60,
+  maxExercisesPerScene: 10,
+  // A scene that has run past six turns is over; the cap is a backstop against
+  // a client replaying an unbounded transcript back at us.
+  maxTranscriptTurns: 24,
+  maxTranscriptTurnLength: 600,
 } as const;
 
 export type TutorHistoryMessage = {
@@ -121,6 +130,26 @@ export type GradeRequestBody = {
   question: string;
   rubric: string;
   answer: string;
+};
+
+export type SceneRequestBody = {
+  subject: string;
+  constraints: string;
+  unitTitle: string;
+  unitObjective: string;
+  seenLines: string[];
+  exerciseCount: number;
+};
+
+export type ConverseRequestBody = {
+  subject: string;
+  constraints: string;
+  role: string;
+  situation: string;
+  goal: string;
+  lines: { target: string; native: string; note?: string }[];
+  transcript: { speaker: "learner" | "character"; text: string }[];
+  learnerTurn: string;
 };
 
 export type UnitRequestBody = {
@@ -729,6 +758,141 @@ export function validateUnitRequest(body: unknown): UnitRequestBody {
     checkCount,
     existingFronts,
     performanceNote,
+  };
+}
+
+/**
+ * One scene to write.
+ *
+ * `seenLines` is what stops a course repeating itself. It is capped rather than
+ * rejected when long, because a learner forty scenes in has a legitimately long
+ * history and refusing to generate their next lesson is the wrong failure.
+ */
+export function validateSceneRequest(body: unknown): SceneRequestBody {
+  const payload = assertPlainObject(body, "body");
+
+  const seenLines = Array.isArray(payload.seenLines)
+    ? payload.seenLines
+        .filter((line): line is string => typeof line === "string")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && line.length <= LIMITS.maxSceneLineLength)
+        .slice(0, LIMITS.maxSeenLines)
+    : [];
+
+  return {
+    subject: validateRequiredString(
+      payload.subject,
+      "subject",
+      LIMITS.maxSubjectLength,
+    ),
+    constraints:
+      validateOptionalString(
+        payload.constraints,
+        "constraints",
+        LIMITS.maxConstraintsLength,
+      ) ?? "",
+    unitTitle: validateRequiredString(
+      payload.unitTitle,
+      "unitTitle",
+      LIMITS.maxUnitItemLength,
+    ),
+    unitObjective: validateRequiredString(
+      payload.unitObjective,
+      "unitObjective",
+      LIMITS.maxUnitItemLength,
+    ),
+    seenLines,
+    exerciseCount: clampInteger(
+      payload.exerciseCount,
+      "exerciseCount",
+      3,
+      LIMITS.maxExercisesPerScene,
+      6,
+    ),
+  };
+}
+
+/**
+ * One turn of a scene being acted out.
+ *
+ * The taught lines and the transcript both come from the client, which means
+ * both are attacker-controlled and both go straight into a prompt. They are
+ * length-capped and count-capped for that reason, and the speaker field is
+ * restricted to the two values the prompt renders rather than passed through.
+ */
+export function validateConverseRequest(body: unknown): ConverseRequestBody {
+  const payload = assertPlainObject(body, "body");
+
+  const lines = Array.isArray(payload.lines)
+    ? payload.lines
+        .flatMap((entry): { target: string; native: string; note?: string }[] => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+          const line = entry as Record<string, unknown>;
+          const target =
+            typeof line.target === "string"
+              ? line.target.trim().slice(0, LIMITS.maxSceneLineLength)
+              : "";
+          const native =
+            typeof line.native === "string"
+              ? line.native.trim().slice(0, LIMITS.maxSceneLineLength)
+              : "";
+          if (target.length === 0 || native.length === 0) return [];
+          const note =
+            typeof line.note === "string"
+              ? line.note.trim().slice(0, LIMITS.maxSceneLineLength)
+              : "";
+          return [note.length > 0 ? { target, native, note } : { target, native }];
+        })
+        .slice(0, LIMITS.maxSceneLines)
+    : [];
+
+  if (lines.length === 0) {
+    invalid("lines", "must contain at least one line the learner was taught");
+  }
+
+  const transcript = Array.isArray(payload.transcript)
+    ? payload.transcript
+        .flatMap((entry): { speaker: "learner" | "character"; text: string }[] => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+          const turn = entry as Record<string, unknown>;
+          const speaker = turn.speaker === "character" ? "character" : "learner";
+          const text =
+            typeof turn.text === "string"
+              ? turn.text.trim().slice(0, LIMITS.maxTranscriptTurnLength)
+              : "";
+          return text.length > 0 ? [{ speaker, text }] : [];
+        })
+        // Keep the most recent turns: the end of a conversation is what the
+        // next reply has to follow from.
+        .slice(-LIMITS.maxTranscriptTurns)
+    : [];
+
+  return {
+    subject: validateRequiredString(
+      payload.subject,
+      "subject",
+      LIMITS.maxSubjectLength,
+    ),
+    constraints:
+      validateOptionalString(
+        payload.constraints,
+        "constraints",
+        LIMITS.maxConstraintsLength,
+      ) ?? "",
+    role: validateRequiredString(payload.role, "role", LIMITS.maxUnitItemLength),
+    situation: validateRequiredString(
+      payload.situation,
+      "situation",
+      LIMITS.maxUnitItemLength,
+    ),
+    goal: validateRequiredString(payload.goal, "goal", LIMITS.maxUnitItemLength),
+    lines,
+    transcript,
+    learnerTurn: validateRequiredString(
+      payload.learnerTurn,
+      "learnerTurn",
+      LIMITS.maxTranscriptTurnLength,
+    ),
   };
 }
 
