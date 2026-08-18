@@ -88,6 +88,16 @@ export interface Scene {
   role: string;
   /** What counts as getting through the scene. Success is task, not accuracy. */
   goal: string;
+  /**
+   * The character's first line, said before the learner does anything.
+   *
+   * Without it the live scene opens on an empty screen and a blinking cursor,
+   * which puts the burden of starting on the person who does not yet know how.
+   * Generated with the scene rather than fetched at play time, so it costs
+   * nothing and cannot fail on a bad connection.
+   */
+  opener: string;
+  openerNative: string;
   lines: SceneLine[];
   exercises: Exercise[];
 }
