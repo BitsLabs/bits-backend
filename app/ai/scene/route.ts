@@ -7,7 +7,7 @@ import { AppError, handleError } from "../../../lib/errors";
 import { MODEL_POLICY } from "../../../lib/models";
 import { buildDiagnostics, getModelClient } from "../../../lib/providers";
 import { rateLimit } from "../../../lib/rateLimit";
-import { parseScene, scenePrompt } from "../../../lib/scenes";
+import { parseSceneWithReport, scenePrompt } from "../../../lib/scenes";
 import { validateSceneRequest } from "../../../lib/validation";
 
 export const runtime = "nodejs";
@@ -53,9 +53,12 @@ export async function POST(request: NextRequest) {
       throw new AppError("ai_error", "The AI service returned no content.", 502);
     }
 
-    let scene;
+    let scene = null;
+    let report = { received: 0, kept: 0, dropped: [] as { kind: string; reason: string }[] };
     try {
-      scene = parseScene(raw);
+      const parsed = parseSceneWithReport(raw);
+      scene = parsed.scene;
+      report = parsed.report;
     } catch {
       scene = null;
     }
@@ -73,7 +76,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ...scene,
-      diagnostics: buildDiagnostics(model, completion.usage),
+      diagnostics: {
+        ...buildDiagnostics(model, completion.usage),
+        // A scene that came back with no exercises used to be indistinguishable
+        // from one the model never wrote exercises for.
+        exercises: report,
+      },
     });
   } catch (error) {
     return handleError(error);

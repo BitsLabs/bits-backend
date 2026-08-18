@@ -352,7 +352,33 @@ export function parseConverse(raw: string): ConverseResult {
  * is an unwinnable one, and it is better to drop it here than to strand someone
  * mid-lesson. Dropping is safe because a scene keeps its lines either way.
  */
+/**
+ * Why an exercise was thrown away.
+ *
+ * The parser drops anything it cannot guarantee is playable, which is right,
+ * but silent dropping made a scene come back with zero exercises and no way to
+ * tell whether the model had produced none or the parser had rejected them all.
+ */
+export interface SceneParseReport {
+  received: number;
+  kept: number;
+  dropped: { kind: string; reason: string }[];
+}
+
 export function parseScene(raw: string): Scene | null {
+  return parseSceneWithReport(raw).scene;
+}
+
+export function parseSceneWithReport(raw: string): {
+  scene: Scene | null;
+  report: SceneParseReport;
+} {
+  const report: SceneParseReport = { received: 0, kept: 0, dropped: [] };
+  const scene = parseSceneInner(raw, report);
+  return { scene, report };
+}
+
+function parseSceneInner(raw: string, report: SceneParseReport): Scene | null {
   const parsed = JSON.parse(stripFence(raw)) as Record<string, unknown>;
 
   const title = str(parsed.title);
@@ -390,8 +416,15 @@ export function parseScene(raw: string): Scene | null {
 
   const exercises = Array.isArray(parsed.exercises)
     ? parsed.exercises.flatMap((entry) => {
-        if (!entry || typeof entry !== "object") return [];
-        return parseExercise(entry as Record<string, unknown>, heard);
+        report.received += 1;
+        if (!entry || typeof entry !== "object") {
+          report.dropped.push({ kind: "?", reason: "not an object" });
+          return [];
+        }
+        const raw = entry as Record<string, unknown>;
+        const parsed = parseExercise(raw, heard, report);
+        if (parsed.length > 0) report.kept += 1;
+        return parsed;
       })
     : [];
 
@@ -410,7 +443,13 @@ export function parseScene(raw: string): Scene | null {
 function parseExercise(
   raw: Record<string, unknown>,
   heard: Set<string>,
+  report: SceneParseReport,
 ): Exercise[] {
+  const kind = typeof raw.kind === "string" ? raw.kind : "?";
+  const drop = (reason: string): Exercise[] => {
+    report.dropped.push({ kind, reason });
+    return [];
+  };
   const prompt = str(raw.prompt);
   const explanation = str(raw.explanation);
 
@@ -426,43 +465,47 @@ function parseExercise(
           })
         : [];
       // Two pairs is a coin toss rather than an exercise.
-      return pairs.length >= 3 ? [{ kind: "match", prompt, pairs }] : [];
+      return pairs.length >= 3
+        ? [{ kind: "match", prompt, pairs }]
+        : drop(`only ${pairs.length} usable pairs`);
     }
 
     case "choose": {
       const choices = strList(raw.choices);
       const answerIndex =
         typeof raw.answerIndex === "number" ? Math.round(raw.answerIndex) : -1;
-      if (choices.length < 2) return [];
-      if (answerIndex < 0 || answerIndex >= choices.length) return [];
+      if (choices.length < 2) return drop(`only ${choices.length} choices`);
+      if (answerIndex < 0 || answerIndex >= choices.length) {
+        return drop(`answerIndex ${answerIndex} outside 0..${choices.length - 1}`);
+      }
       return [{ kind: "choose", prompt, choices, answerIndex, explanation }];
     }
 
     case "tap": {
       const answer = str(raw.answer);
       const tiles = strList(raw.tiles);
-      if (answer.length === 0 || tiles.length === 0) return [];
+      if (answer.length === 0 || tiles.length === 0) return drop("no answer or no tiles");
       // The tiles have to be able to spell the answer, or the exercise cannot
       // be completed at all.
-      if (!tilesCanSpell(tiles, answer)) return [];
+      if (!tilesCanSpell(tiles, answer)) return drop("tiles cannot spell the answer");
       // "order" is allowed on a heard line, because rebuilding an instruction
       // proves comprehension. "tap" is not: it asks the learner to speak.
-      if (heard.has(normalise(answer))) return [];
+      if (heard.has(normalise(answer))) return drop("answer is a line the learner only hears");
       return [{ kind: "tap", prompt, answer, tiles, explanation }];
     }
 
     case "order": {
       const answer = strList(raw.answer);
       const tiles = strList(raw.tiles);
-      if (answer.length < 2) return [];
-      if (!sameMultiset(tiles, answer)) return [];
+      if (answer.length < 2) return drop("fewer than two items to order");
+      if (!sameMultiset(tiles, answer)) return drop("tiles are not the answer shuffled");
       return [{ kind: "order", prompt, tiles, answer, explanation }];
     }
 
     case "type": {
       const answer = str(raw.answer);
-      if (answer.length === 0) return [];
-      if (heard.has(normalise(answer))) return [];
+      if (answer.length === 0) return drop("no answer");
+      if (heard.has(normalise(answer))) return drop("answer is a line the learner only hears");
       return [
         {
           kind: "type",
@@ -475,7 +518,7 @@ function parseExercise(
     }
 
     default:
-      return [];
+      return drop("unknown kind");
   }
 }
 
