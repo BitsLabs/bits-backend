@@ -29,38 +29,48 @@ export async function POST(request: NextRequest) {
     await consumeAIQuota(session);
 
     const model = MODEL_POLICY.scene;
-    const completion = await getModelClient(model).chat.completions.create({
-      model,
-      max_tokens: 4_000,
-      messages: [
-        {
-          role: "user",
-          content: scenePrompt({
-            subject: body.subject,
-            constraints: body.constraints,
-            nativeLanguage: body.nativeLanguage,
-            unitTitle: body.unitTitle,
-            unitObjective: body.unitObjective,
-            seenLines: body.seenLines,
-            exerciseCount: body.exerciseCount,
-          }),
-        },
-      ],
+    const prompt = scenePrompt({
+      subject: body.subject,
+      constraints: body.constraints,
+      nativeLanguage: body.nativeLanguage,
+      unitTitle: body.unitTitle,
+      unitObjective: body.unitObjective,
+      seenLines: body.seenLines,
+      exerciseCount: body.exerciseCount,
     });
-
-    const raw = completion.choices[0]?.message.content?.trim() ?? "";
-    if (!raw) {
-      throw new AppError("ai_error", "The AI service returned no content.", 502);
-    }
 
     let scene = null;
     let report = { received: 0, kept: 0, dropped: [] as { kind: string; reason: string }[] };
-    try {
-      const parsed = parseSceneWithReport(raw);
-      scene = parsed.scene;
-      report = parsed.report;
-    } catch {
-      scene = null;
+    let completion;
+
+    // Two attempts, because generation varies run to run and a scene whose
+    // exercises all failed validation is a lesson with nothing to do in it. The
+    // second attempt is a fresh draw of the same prompt rather than a repair:
+    // asking the model to fix its own output costs about as much and tends to
+    // produce a worse scene than simply writing another one.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      completion = await getModelClient(model).chat.completions.create({
+        model,
+        max_tokens: 4_000,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const raw = completion.choices[0]?.message.content?.trim() ?? "";
+      if (!raw) continue;
+
+      try {
+        const parsed = parseSceneWithReport(raw);
+        scene = parsed.scene;
+        report = parsed.report;
+      } catch {
+        scene = null;
+      }
+
+      if (scene && scene.exercises.length > 0) break;
+    }
+
+    if (!completion) {
+      throw new AppError("ai_error", "The AI service returned no content.", 502);
     }
 
     // parseScene drops exercises it cannot guarantee are playable, so a scene
