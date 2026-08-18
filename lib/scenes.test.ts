@@ -301,6 +301,49 @@ test("an unmarked speaker defaults to the learner rather than dropping the line"
   assert.equal(scene?.lines[0]?.speaker, "you");
 });
 
+test("a tap or type on a line the learner only hears is dropped", () => {
+  // Caught in production: the model produced exercises on the pharmacist's own
+  // line even after being told not to, so the rule is enforced here.
+  const build = (kind: string, answer: string) =>
+    parseScene(
+      JSON.stringify({
+        ...SCENE,
+        exercises: [
+          kind === "tap"
+            ? { kind, prompt: "Say it.", answer, tiles: answer.split(" "), explanation: "" }
+            : { kind, prompt: "Say it.", answer, alternatives: [], explanation: "" },
+        ],
+      }),
+    )?.exercises.length;
+
+  // "Mais alguma coisa?" is the fixture's only line marked "them".
+  assert.equal(build("tap", "Mais alguma coisa?"), 0);
+  assert.equal(build("type", "Mais alguma coisa?"), 0);
+  // The learner's own lines are untouched.
+  assert.equal(build("tap", "Quanto é?"), 1);
+  assert.equal(build("type", "Quanto é?"), 1);
+});
+
+test("an order may rebuild a line the learner only hears", () => {
+  // Reconstructing an instruction you were just given proves you understood it,
+  // which is what a heard line is for.
+  const scene = parseScene(
+    JSON.stringify({
+      ...SCENE,
+      exercises: [
+        {
+          kind: "order",
+          prompt: "Put it back together.",
+          tiles: ["alguma", "Mais", "coisa?"],
+          answer: ["Mais", "alguma", "coisa?"],
+          explanation: "",
+        },
+      ],
+    }),
+  );
+  assert.equal(scene?.exercises.length, 1);
+});
+
 test("the scene prompt refuses to drill production of a line the learner only hears", () => {
   const prompt = scenePrompt({
     subject: "Portuguese",
@@ -311,7 +354,7 @@ test("the scene prompt refuses to drill production of a line the learner only he
     seenLines: [],
     exerciseCount: 5,
   });
-  assert.ok(prompt.includes('Only ever ask the learner to produce a line marked "you"'));
+  assert.ok(prompt.includes('Never ask the learner to say a line marked "them"'));
   assert.ok(prompt.includes("before the learner has said anything"));
 });
 

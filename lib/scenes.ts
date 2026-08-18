@@ -149,9 +149,11 @@ Every exercise must be answerable from the lines above and nothing else. Never
 require a word the learner has not met. Vary the kinds. Order them so
 recognition comes before production.
 
-Only ever ask the learner to produce a line marked "you". A line marked "them"
-may be tested for understanding, or used as the setup for a "choose", but never
-made the answer to a "tap", "order" or "type".
+Never ask the learner to say a line marked "them". A "tap" or "type" answer must
+always be a line marked "you", because those are asking the learner to speak.
+
+An "order" may use a line marked "them": rebuilding an instruction you were just
+given proves you understood it, which is exactly what a heard line is for.
 
 The kinds, and what each must contain:
 
@@ -368,10 +370,18 @@ export function parseScene(raw: string): Scene | null {
 
   if (lines.length === 0) return null;
 
+  // Lines the learner only hears. Asking them to *say* one is the mistake the
+  // speaker field exists to prevent, so it is enforced here rather than left to
+  // the prompt: in testing the model produced a "tap" on the server's line even
+  // when told not to.
+  const heard = new Set(
+    lines.filter((line) => line.speaker === "them").map((line) => normalise(line.target)),
+  );
+
   const exercises = Array.isArray(parsed.exercises)
     ? parsed.exercises.flatMap((entry) => {
         if (!entry || typeof entry !== "object") return [];
-        return parseExercise(entry as Record<string, unknown>);
+        return parseExercise(entry as Record<string, unknown>, heard);
       })
     : [];
 
@@ -387,7 +397,10 @@ export function parseScene(raw: string): Scene | null {
   };
 }
 
-function parseExercise(raw: Record<string, unknown>): Exercise[] {
+function parseExercise(
+  raw: Record<string, unknown>,
+  heard: Set<string>,
+): Exercise[] {
   const prompt = str(raw.prompt);
   const explanation = str(raw.explanation);
 
@@ -422,6 +435,9 @@ function parseExercise(raw: Record<string, unknown>): Exercise[] {
       // The tiles have to be able to spell the answer, or the exercise cannot
       // be completed at all.
       if (!tilesCanSpell(tiles, answer)) return [];
+      // "order" is allowed on a heard line, because rebuilding an instruction
+      // proves comprehension. "tap" is not: it asks the learner to speak.
+      if (heard.has(normalise(answer))) return [];
       return [{ kind: "tap", prompt, answer, tiles, explanation }];
     }
 
@@ -436,6 +452,7 @@ function parseExercise(raw: Record<string, unknown>): Exercise[] {
     case "type": {
       const answer = str(raw.answer);
       if (answer.length === 0) return [];
+      if (heard.has(normalise(answer))) return [];
       return [
         {
           kind: "type",
