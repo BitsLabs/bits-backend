@@ -405,3 +405,43 @@ test("answer comparison ignores punctuation and case but keeps accents", () => {
   // so stripping accents would mark a genuine mistake as correct.
   assert.notEqual(normalise("é"), normalise("e"));
 });
+
+test("an exercise missing its kind is read off its shape", () => {
+  // Seen in production: one run returned all six exercises with no "kind" at
+  // all, and the entire lesson was discarded.
+  const kinds = (exercises: unknown[]) =>
+    parseScene(JSON.stringify({ ...SCENE, exercises }))?.exercises.map((e) => e.kind);
+
+  assert.deepEqual(
+    kinds([
+      { prompt: "Match.", pairs: [
+        { left: "a", right: "1" }, { left: "b", right: "2" }, { left: "c", right: "3" },
+      ] },
+      { prompt: "Pick.", choices: ["a", "b"], answerIndex: 1, explanation: "" },
+      { prompt: "Build.", answer: "Quanto é?", tiles: ["Quanto", "é"], explanation: "" },
+      { prompt: "Order.", tiles: ["se", "faz"], answer: ["se", "faz"], explanation: "" },
+      { prompt: "Write.", answer: "Quanto é?", alternatives: [], explanation: "" },
+    ]),
+    ["match", "choose", "tap", "order", "type"],
+  );
+});
+
+test("a declared kind always beats the inferred one", () => {
+  const scene = parseScene(
+    JSON.stringify({
+      ...SCENE,
+      exercises: [
+        // Has tiles, so the shape says "tap", but it says it is an order.
+        { kind: "order", prompt: "Order.", tiles: ["se", "faz"], answer: ["se", "faz"], explanation: "" },
+      ],
+    }),
+  );
+  assert.equal(scene?.exercises[0]?.kind, "order");
+});
+
+test("an exercise with no recognisable shape is still dropped", () => {
+  const scene = parseScene(
+    JSON.stringify({ ...SCENE, exercises: [{ prompt: "Hum it." }] }),
+  );
+  assert.equal(scene?.exercises.length, 0);
+});

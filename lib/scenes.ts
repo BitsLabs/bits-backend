@@ -440,12 +440,33 @@ function parseSceneInner(raw: string, report: SceneParseReport): Scene | null {
   };
 }
 
+/**
+ * What kind of exercise this is.
+ *
+ * The model sometimes omits `kind` entirely: in one run every one of six
+ * exercises came back without it, and the whole lesson was thrown away. The
+ * shape says what the kind is, so it is read off the shape rather than lost.
+ * A declared kind always wins; this only fills a gap.
+ */
+function resolveKind(raw: Record<string, unknown>): string {
+  if (typeof raw.kind === "string" && raw.kind.trim().length > 0) {
+    return raw.kind.trim().toLowerCase();
+  }
+  if (Array.isArray(raw.pairs)) return "match";
+  if (Array.isArray(raw.choices)) return "choose";
+  // Order carries a list of tiles and a list for the answer; tap carries tiles
+  // and a single string.
+  if (Array.isArray(raw.tiles)) return Array.isArray(raw.answer) ? "order" : "tap";
+  if (typeof raw.answer === "string") return "type";
+  return "?";
+}
+
 function parseExercise(
   raw: Record<string, unknown>,
   heard: Set<string>,
   report: SceneParseReport,
 ): Exercise[] {
-  const kind = typeof raw.kind === "string" ? raw.kind : "?";
+  const kind = resolveKind(raw);
   const drop = (reason: string): Exercise[] => {
     report.dropped.push({ kind, reason });
     return [];
@@ -453,7 +474,7 @@ function parseExercise(
   const prompt = str(raw.prompt);
   const explanation = str(raw.explanation);
 
-  switch (raw.kind) {
+  switch (kind) {
     case "match": {
       const pairs = Array.isArray(raw.pairs)
         ? raw.pairs.flatMap((entry): { left: string; right: string }[] => {
